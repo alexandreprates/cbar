@@ -21,6 +21,11 @@ jobs:
           toolchain: 1.94.1
           components: rustfmt, clippy
 
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libxkbcommon-dev pkgconf
+
       - name: Run cargo fmt
         run: cargo fmt --check
 
