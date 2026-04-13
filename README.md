@@ -4,7 +4,7 @@
 [![Rust](https://img.shields.io/badge/rust-1.94%2B-orange.svg)](https://www.rust-lang.org/)
 [![COSMIC](https://img.shields.io/badge/COSMIC-applet-7c3aed.svg)](https://system76.com/cosmic)
 
-`cbar` is an experimental [COSMIC](https://system76.com/cosmic) applet for Pop!_OS inspired by [xbar](https://github.com/matryer/xbar).
+`cbar` is a feature-complete [COSMIC](https://system76.com/cosmic) applet for Pop!_OS, inspired by [xbar](https://github.com/matryer/xbar), aimed at early adopters, and ready for community feedback.
 
 It executes local plugins on a refresh interval and renders their output as:
 
