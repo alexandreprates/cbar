@@ -19,8 +19,10 @@ use cosmic::{Element, widget};
 use std::path::PathBuf;
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
+use tokio::process::Command;
 
 const APP_ID: &str = "io.github.alexprates.CBar";
+const REPOSITORY_URL: &str = "https://github.com/alexandreprates/cbar";
 static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
 pub fn run() -> cosmic::iced::Result {
@@ -54,6 +56,8 @@ enum Message {
     },
     RefreshAll,
     TogglePluginSelection(String),
+    OpenAbout,
+    AboutOpened(Result<(), String>),
     ConfigSaved(Result<(), String>),
     Rectangle(RectangleUpdate<u32>),
     RunEntry {
@@ -194,6 +198,14 @@ impl cosmic::Application for CBarApplet {
                 let save_task = self.persist_config();
                 return Task::batch(vec![refresh_task, save_task]);
             }
+            Message::OpenAbout => {
+                return Task::perform(open_repository(), app_message(Message::AboutOpened));
+            }
+            Message::AboutOpened(result) => {
+                if let Err(err) = result {
+                    self.status = err;
+                }
+            }
             Message::ConfigSaved(result) => {
                 if let Err(err) = result {
                     self.status = err;
@@ -275,12 +287,6 @@ impl cosmic::Application for CBarApplet {
         let enabled_count = self.enabled_plugin_count();
 
         let mut content = column![
-            text::body(fl!(
-                "plugin-dir",
-                path = self.plugin_dir.display().to_string()
-            )),
-            menu_button(text::body(fl!("refresh-now"))).on_press(Message::RefreshAll),
-            divider::horizontal::default(),
             text::body(
                 fl!(
                     "visible-plugins",
@@ -357,6 +363,12 @@ impl cosmic::Application for CBarApplet {
         if !self.plugins.is_empty() && !has_visible_plugins {
             content = content.push(text::body(fl!("no-selected-plugins")));
         }
+
+        content = content
+            .push(divider::horizontal::default())
+            .push(menu_button(text::body(fl!("refresh-now"))).on_press(Message::RefreshAll))
+            .push(divider::horizontal::default())
+            .push(menu_button(text::body(fl!("about"))).on_press(Message::OpenAbout));
 
         self.core
             .applet
@@ -584,6 +596,14 @@ fn default_plugin_dir() -> PathBuf {
     }
 
     PathBuf::from("plugins")
+}
+
+async fn open_repository() -> Result<(), String> {
+    Command::new("xdg-open")
+        .arg(REPOSITORY_URL)
+        .spawn()
+        .map_err(|err| format!("failed to open repository: {err}"))?;
+    Ok(())
 }
 
 fn panel_label(plugins: &[PluginState], config: &AppConfig, status: &str) -> String {

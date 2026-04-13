@@ -7,6 +7,7 @@ no-executable-plugins = Nenhum plugin executável encontrado.
 cycle-items = ciclo: {$items}
 plugin-error = erro: {$error}
 no-selected-plugins = Nenhum plugin selecionado.
+about = Sobre
 status-no-plugins = nenhum plugin em {$path}
 status-no-selected-plugins = nenhum plugin selecionado
 status-plugin-count = {$count} plugin(s)
