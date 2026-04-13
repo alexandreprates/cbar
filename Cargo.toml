@@ -1,0 +1,18 @@
+[package]
+name = "cbar"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+
+[dependencies]
+libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
+    "applet",
+    "multi-window",
+    "tokio",
+    "wayland",
+    "winit",
+] }
+tokio = { version = "1.49.0", features = ["process", "rt", "time"] }
+tracing = "0.1"
+tracing-log = "0.2"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
