@@ -1,5 +1,13 @@
+use base64::prelude::*;
 use std::collections::BTreeMap;
 use std::time::Duration;
+
+#[derive(Debug, Clone)]
+pub struct EmbeddedImage {
+    pub bytes: Vec<u8>,
+    pub is_svg: bool,
+    pub is_template: bool,
+}
 
 #[derive(Debug, Clone)]
 pub struct ItemParams {
@@ -12,6 +20,7 @@ pub struct ItemParams {
     pub disabled: bool,
     pub trim: bool,
     pub color: Option<String>,
+    pub image: Option<EmbeddedImage>,
     pub params: Vec<String>,
 }
 
@@ -27,6 +36,7 @@ impl Default for ItemParams {
             disabled: false,
             trim: true,
             color: None,
+            image: None,
             params: Vec::new(),
         }
     }
@@ -44,6 +54,7 @@ pub struct MenuEntry {
 #[derive(Debug, Clone, Default)]
 pub struct ParsedPlugin {
     pub title: String,
+    pub title_params: ItemParams,
     pub cycle_items: Vec<String>,
     pub menu_entries: Vec<MenuEntry>,
 }
@@ -111,10 +122,27 @@ pub fn parse_plugin_output(output: &str) -> ParsedPlugin {
 
     menu_entries = normalize_menu_entries(menu_entries);
 
-    let title = cycle_items.first().cloned().unwrap_or_default();
+    let (title, title_params) = if let Some(first_line) = output
+        .lines()
+        .map(|raw_line| raw_line.trim_end_matches('\r'))
+        .find(|line| !line.trim().is_empty() && line.trim() != "---")
+    {
+        let (text, params) = parse_params(first_line);
+        (
+            if params.trim {
+                text.trim().to_owned()
+            } else {
+                text.to_owned()
+            },
+            params,
+        )
+    } else {
+        (String::new(), ItemParams::default())
+    };
 
     ParsedPlugin {
         title,
+        title_params,
         cycle_items,
         menu_entries,
     }
@@ -199,6 +227,8 @@ fn parse_params(line: &str) -> (String, ItemParams) {
             "disabled" => params.disabled = value == "true",
             "trim" => params.trim = value == "true",
             "color" => params.color = Some(value),
+            "image" => params.image = decode_image_param(&value, false),
+            "templateImage" => params.image = decode_image_param(&value, true),
             _ if key.starts_with("param") => {
                 if let Ok(index) = key.trim_start_matches("param").parse::<usize>() {
                     indexed_params.insert(index, value);
@@ -263,6 +293,22 @@ fn next_param(input: &str) -> Option<(String, String, &str)> {
     Some((key, value, rest))
 }
 
+fn decode_image_param(value: &str, is_template: bool) -> Option<EmbeddedImage> {
+    let normalized = value.trim().replace(char::is_whitespace, "");
+    let bytes = BASE64_STANDARD.decode(normalized).ok()?;
+    let is_svg = bytes
+        .iter()
+        .copied()
+        .find(|byte| !byte.is_ascii_whitespace())
+        .is_some_and(|byte| byte == b'<');
+
+    Some(EmbeddedImage {
+        bytes,
+        is_svg,
+        is_template,
+    })
+}
+
 fn normalize_menu_entries(entries: Vec<MenuEntry>) -> Vec<MenuEntry> {
     let mut normalized: Vec<MenuEntry> = Vec::new();
 
@@ -301,6 +347,7 @@ mod tests {
         );
 
         assert_eq!(parsed.title, "one");
+        assert!(parsed.title_params.image.is_none());
         assert_eq!(parsed.cycle_items, vec!["one", "two"]);
         assert_eq!(parsed.menu_entries.len(), 3);
         assert_eq!(parsed.menu_entries[0].text, "item");
@@ -365,5 +412,30 @@ mod tests {
             Some("alt")
         );
         assert!(parsed.menu_entries[2].params.disabled);
+    }
+
+    #[test]
+    fn decodes_embedded_images() {
+        let parsed = parse_plugin_output(
+            "title | image=PHN2Zy8+\n\
+             ---\n\
+             item | templateImage=PHN2Zy8+\n",
+        );
+
+        let title_image = parsed
+            .title_params
+            .image
+            .as_ref()
+            .expect("title image should decode");
+        assert!(title_image.is_svg);
+        assert!(!title_image.is_template);
+
+        let menu_image = parsed.menu_entries[0]
+            .params
+            .image
+            .as_ref()
+            .expect("menu image should decode");
+        assert!(menu_image.is_svg);
+        assert!(menu_image.is_template);
     }
 }

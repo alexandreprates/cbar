@@ -1,0 +1,14 @@
+plugin-dir = Plugin dir: {$path}
+refresh-now = Refresh now
+visible-plugins = Visible plugins ({$enabled}/{$total}):
+reload-plugin-directory = Reload plugin directory
+reloading-plugins = reloading plugins
+no-executable-plugins = No executable plugins found.
+cycle-items = cycle: {$items}
+plugin-error = error: {$error}
+no-selected-plugins = No plugins selected.
+status-no-plugins = no plugins in {$path}
+status-no-selected-plugins = no plugins selected
+status-plugin-count = {$count} plugin(s)
+status-plugin-count-filtered = {$enabled} of {$total} plugin(s)
+alternate-prefix = [alt] 

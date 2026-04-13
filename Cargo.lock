@@ -666,7 +666,13 @@ dependencies = [
 name = "cbar"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "i18n-embed",
+ "i18n-embed-fl",
  "libcosmic",
+ "rust-embed",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-log",

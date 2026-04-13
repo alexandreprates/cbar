@@ -1,4 +1,6 @@
-use crate::parser::{MenuEntry, ParsedPlugin, parse_plugin_output, parse_refresh_interval};
+use crate::parser::{
+    EmbeddedImage, MenuEntry, ParsedPlugin, parse_plugin_output, parse_refresh_interval,
+};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -30,6 +32,10 @@ impl PluginState {
 
     pub fn cycle_items(&self) -> &[String] {
         &self.last_output.cycle_items
+    }
+
+    pub fn title_image(&self) -> Option<&EmbeddedImage> {
+        self.last_output.title_params.image.as_ref()
     }
 }
 
@@ -151,6 +157,7 @@ async fn refresh_plugin(plugin: &mut PluginState) {
         Err(err) => {
             plugin.last_output = ParsedPlugin {
                 title: format!("{} !", plugin.name),
+                title_params: Default::default(),
                 cycle_items: vec![format!("{} !", plugin.name)],
                 menu_entries: Vec::new(),
             };
