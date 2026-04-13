@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=cbar
+Comment=COSMIC applet inspired by xbar
+Type=Application
+Exec=__CBAR_EXEC__
+Terminal=false
+Categories=COSMIC;Utility;
+Keywords=COSMIC;Applet;xbar;plugins;
+Icon=io.github.alexprates.CBar-symbolic
+StartupNotify=true
+NoDisplay=true
+X-CosmicApplet=true
+X-CosmicHoverPopup=Auto
