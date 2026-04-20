@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  BINARY_NAME: cbar
+  RUST_TOOLCHAIN: 1.94.1
+  TARGET: x86_64-unknown-linux-gnu
+
+jobs:
+  build:
+    name: Build Release Binary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ env.TARGET }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libxkbcommon-dev pkgconf
+
+      - name: Build release binary
+        run: cargo build --release --target "${TARGET}"
+
+      - name: Package release asset
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME}"
+          asset_name="${BINARY_NAME}-${version}-${TARGET}"
+          binary_path="target/${TARGET}/release/${BINARY_NAME}"
+
+          mkdir -p dist
+          cp "${binary_path}" "dist/${BINARY_NAME}"
+          chmod +x "dist/${BINARY_NAME}"
+          tar -C dist -czf "${asset_name}.tar.gz" "${BINARY_NAME}"
+
+      - name: Upload packaged asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-x86_64-linux
+          path: "*.tar.gz"
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packaged asset
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            release-assets/**/*.tar.gz
