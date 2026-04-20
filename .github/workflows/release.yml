@@ -4,11 +4,18 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to build and publish
+        required: true
+        type: string
 
 env:
   BINARY_NAME: cbar
   RUST_TOOLCHAIN: 1.94.1
   TARGET: x86_64-unknown-linux-gnu
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
 
 jobs:
   build:
@@ -20,6 +27,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -38,7 +47,7 @@ jobs:
       - name: Package release asset
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME}"
+          version="${RELEASE_TAG}"
           asset_name="${BINARY_NAME}-${version}-${TARGET}"
           binary_path="target/${TARGET}/release/${BINARY_NAME}"
 
@@ -48,7 +57,7 @@ jobs:
           tar -C dist -czf "${asset_name}.tar.gz" "${BINARY_NAME}"
 
       - name: Upload packaged asset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-x86_64-linux
           path: "*.tar.gz"
@@ -64,15 +73,29 @@ jobs:
 
     steps:
       - name: Download packaged asset
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
+          name: release-x86_64-linux
           path: release-assets
 
-      - name: Create GitHub release
+      - name: Create or update GitHub release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes \
-            release-assets/**/*.tar.gz
+          shopt -s nullglob
+          assets=(release-assets/*.tar.gz)
+
+          if (( ${#assets[@]} == 0 )); then
+            echo "No packaged release assets were downloaded."
+            exit 1
+          fi
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
+          else
+            gh release create "${RELEASE_TAG}" \
+              --title "${RELEASE_TAG}" \
+              --generate-notes \
+              "${assets[@]}"
+          fi
