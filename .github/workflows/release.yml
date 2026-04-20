@@ -16,6 +16,7 @@ env:
   RUST_TOOLCHAIN: 1.94.1
   TARGET: x86_64-unknown-linux-gnu
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build:
@@ -82,6 +83,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           shopt -s nullglob
           assets=(release-assets/*.tar.gz)
@@ -91,10 +93,11 @@ jobs:
             exit 1
           fi
 
-          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
+          if gh release view "${RELEASE_TAG}" --repo "${GH_REPO}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" "${assets[@]}" --repo "${GH_REPO}" --clobber
           else
             gh release create "${RELEASE_TAG}" \
+              --repo "${GH_REPO}" \
               --title "${RELEASE_TAG}" \
               --generate-notes \
               "${assets[@]}"
