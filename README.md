@@ -147,8 +147,8 @@ If you want to install the prebuilt release binary without compiling locally, do
 ```bash
 git clone git@github.com:alexandreprates/cbar.git
 cd cbar
-curl -LO https://github.com/alexandreprates/cbar/releases/download/v1.0.0/cbar-v1.0.0-x86_64-unknown-linux-gnu.tar.gz
-./scripts/install-from-release.sh ./cbar-v1.0.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/alexandreprates/cbar/releases/download/v1.1.1/cbar-v1.1.1-x86_64-unknown-linux-gnu.tar.gz
+./scripts/install-from-release.sh ./cbar-v1.1.1-x86_64-unknown-linux-gnu.tar.gz
 ```
 
 The installer reuses the desktop entry and icons from the repository and installs:
