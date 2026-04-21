@@ -140,6 +140,30 @@ just install-local
 just uninstall-local
 ```
 
+## Installing from a GitHub Release
+
+If you want to install the prebuilt release binary without compiling locally, download the release archive and run the dedicated installer from the repository:
+
+```bash
+git clone git@github.com:alexandreprates/cbar.git
+cd cbar
+curl -LO https://github.com/alexandreprates/cbar/releases/download/v1.0.0/cbar-v1.0.0-x86_64-unknown-linux-gnu.tar.gz
+./scripts/install-from-release.sh ./cbar-v1.0.0-x86_64-unknown-linux-gnu.tar.gz
+```
+
+The installer reuses the desktop entry and icons from the repository and installs:
+
+- `~/.local/bin/cbar`
+- `~/.local/share/applications/io.github.alexprates.CBar.desktop`
+- icons under `~/.local/share/icons/hicolor/scalable/apps/`
+- the example plugin in `~/.config/cbar/plugins/` if it does not already exist
+
+If the archive is placed in the repository root, the script can also autodetect it:
+
+```bash
+./scripts/install-from-release.sh
+```
+
 ## Testing in COSMIC
 
 The local desktop entry is installed with:
