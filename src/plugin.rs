@@ -18,6 +18,10 @@ pub struct PluginState {
 }
 
 impl PluginState {
+    pub fn panel_title(&self) -> &str {
+        &self.last_output.title
+    }
+
     pub fn title(&self) -> &str {
         if self.last_output.title.is_empty() {
             &self.name

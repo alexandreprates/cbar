@@ -1,4 +1,6 @@
 plugin-dir = Plugin dir: {$path}
+bar-settings = Bar Settings
+back = Back
 refresh-now = Refresh now
 visible-plugins = Visible plugins ({$enabled}/{$total}):
 reload-plugin-directory = Reload plugin directory

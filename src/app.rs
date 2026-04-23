@@ -7,8 +7,7 @@ use cosmic::applet::menu_button;
 use cosmic::iced::platform_specific::shell::commands::popup::{destroy_popup, get_popup};
 use cosmic::iced::time;
 use cosmic::iced::widget::{Image, column, container, row, scrollable, svg};
-use cosmic::iced::{Alignment, Length, Subscription, window};
-use cosmic::theme;
+use cosmic::iced::{Alignment, ContentFit, Length, Subscription, window};
 use cosmic::widget::{
     Id, autosize, button, divider,
     icon::{self, Data as IconData, Handle as IconHandle},
@@ -32,6 +31,8 @@ pub fn run() -> cosmic::iced::Result {
 struct CBarApplet {
     core: Core,
     popup: Option<window::Id>,
+    popup_plugin_index: Option<usize>,
+    popup_view: PopupView,
     config: AppConfig,
     config_path: PathBuf,
     plugin_dir: PathBuf,
@@ -43,9 +44,17 @@ struct CBarApplet {
     pending_force_refresh: Vec<bool>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PopupView {
+    Menu,
+    Settings,
+}
+
 #[derive(Debug, Clone)]
 enum Message {
-    TogglePopup,
+    TogglePopup(Option<usize>),
+    OpenBarSettings,
+    CloseBarSettings,
     PopupClosed(window::Id),
     Tick,
     ReloadPlugins,
@@ -83,6 +92,8 @@ impl cosmic::Application for CBarApplet {
             Self {
                 core,
                 popup: None,
+                popup_plugin_index: None,
+                popup_view: PopupView::Menu,
                 config,
                 config_path,
                 plugin_dir: plugin_dir.clone(),
@@ -114,25 +125,28 @@ impl cosmic::Application for CBarApplet {
 
     fn update(&mut self, message: Self::Message) -> Task<Self::Message> {
         match message {
-            Message::TogglePopup => {
-                if let Some(popup) = self.popup.take() {
-                    return destroy_popup(popup);
+            Message::TogglePopup(plugin_index) => {
+                if self.popup.is_some() && self.popup_plugin_index == plugin_index {
+                    self.popup_plugin_index = None;
+                    self.popup_view = PopupView::Menu;
+                    if let Some(popup) = self.popup.take() {
+                        return destroy_popup(popup);
+                    }
                 }
 
-                let new_id = window::Id::unique();
-                self.popup = Some(new_id);
-                let popup_settings = self.core.applet.get_popup_settings(
-                    self.core.main_window_id().unwrap(),
-                    new_id,
-                    Some((420, 520)),
-                    None,
-                    None,
-                );
-                return get_popup(popup_settings);
+                return self.open_popup(plugin_index);
+            }
+            Message::OpenBarSettings => {
+                self.popup_view = PopupView::Settings;
+            }
+            Message::CloseBarSettings => {
+                self.popup_view = PopupView::Menu;
             }
             Message::PopupClosed(id) => {
                 if self.popup == Some(id) {
                     self.popup = None;
+                    self.popup_plugin_index = None;
+                    self.popup_view = PopupView::Menu;
                 }
             }
             Message::Tick => {
@@ -147,6 +161,12 @@ impl cosmic::Application for CBarApplet {
             }
             Message::PluginsLoaded(plugins) => {
                 self.plugins = plugins;
+                if self
+                    .popup_plugin_index
+                    .is_some_and(|index| index >= self.plugins.len())
+                {
+                    self.popup_plugin_index = None;
+                }
                 self.sync_refresh_tracking();
                 self.update_status();
             }
@@ -259,19 +279,52 @@ impl cosmic::Application for CBarApplet {
         } else {
             (applet_padding_minor_axis, applet_padding_major_axis)
         };
-        let button = button::custom(
-            container(panel_content(&self.plugins, &self.config, &self.status))
-                .center_y(Length::Fixed(f32::from(suggested.1 + 2 * vertical_padding))),
-        )
-        .on_press_down(Message::TogglePopup)
-        .padding([0, horizontal_padding])
-        .class(cosmic::theme::Button::AppletIcon);
+        let button_height = Length::Fixed(f32::from(suggested.1 + 2 * vertical_padding));
+        let enabled_plugins = self
+            .plugins
+            .iter()
+            .enumerate()
+            .filter(|(_, plugin)| self.config.is_enabled(&plugin.name))
+            .collect::<Vec<_>>();
+
+        let content = if enabled_plugins.is_empty() {
+            let button = button::custom(
+                container(status_panel_content(&self.status)).center_y(button_height),
+            )
+            .on_press_down(Message::TogglePopup(None))
+            .padding([0, horizontal_padding])
+            .class(cosmic::theme::Button::AppletIcon);
+
+            Element::from(button)
+        } else {
+            let plugin_padding = if enabled_plugins.len() > 1 {
+                horizontal_padding / 2
+            } else {
+                horizontal_padding
+            };
+            let mut buttons = row![]
+                .spacing(0)
+                .align_y(Alignment::Center)
+                .width(Length::Shrink);
+
+            for (plugin_index, plugin) in enabled_plugins {
+                let button =
+                    button::custom(container(plugin_panel_content(plugin)).center_y(button_height))
+                        .on_press_down(Message::TogglePopup(Some(plugin_index)))
+                        .padding([0, plugin_padding])
+                        .class(cosmic::theme::Button::AppletIcon);
+
+                buttons = buttons.push(button);
+            }
+
+            buttons.into()
+        };
 
         autosize::autosize(
             if let Some(tracker) = self.rectangle_tracker.as_ref() {
-                Element::from(tracker.container(0, button).ignore_bounds(true))
+                Element::from(tracker.container(0, content).ignore_bounds(true))
             } else {
-                button.into()
+                content
             },
             AUTOSIZE_MAIN_ID.clone(),
         )
@@ -283,92 +336,109 @@ impl cosmic::Application for CBarApplet {
             return widget::text("").into();
         }
 
-        let spacing = theme::active().cosmic().spacing;
-        let enabled_count = self.enabled_plugin_count();
+        let mut content = column![]
+            .spacing(2)
+            .padding([4, 0])
+            .align_x(Alignment::Start);
 
-        let mut content = column![
-            text::body(
-                fl!(
-                    "visible-plugins",
-                    enabled = enabled_count,
-                    total = self.plugins.len()
-                )
-                .to_string()
-            )
-            .size(14),
-            menu_button(text::body(fl!("reload-plugin-directory")))
-                .on_press(Message::ReloadPlugins),
-            divider::horizontal::default(),
-        ]
-        .spacing(spacing.space_xxs)
-        .padding([8, 0])
-        .align_x(Alignment::Start);
+        match self.popup_view {
+            PopupView::Menu => {
+                if let Some(plugin_index) = self.popup_plugin_index {
+                    if let Some(plugin) = self.plugins.get(plugin_index) {
+                        content = content.push(text::body(plugin.title().to_owned()).size(14));
 
-        if self.plugins.is_empty() {
-            content = content.push(text::body(fl!("no-executable-plugins")));
-        }
+                        if plugin.cycle_items().len() > 1 {
+                            content = content.push(text::body(
+                                fl!("cycle-items", items = plugin.cycle_items().join(" | "))
+                                    .to_string(),
+                            ));
+                        }
 
-        for plugin in &self.plugins {
-            let marker = if self.config.is_enabled(&plugin.name) {
-                "✓"
-            } else {
-                "○"
-            };
-            content = content.push(
-                menu_button(text::body(format!("{marker} {}", plugin.name)))
-                    .on_press(Message::TogglePluginSelection(plugin.name.clone())),
-            );
-        }
+                        if let Some(error) = &plugin.last_error {
+                            content = content.push(text::body(fl!("plugin-error", error = error)));
+                        }
 
-        if !self.plugins.is_empty() {
-            content = content.push(divider::horizontal::default());
-        }
+                        content = content.push(divider::horizontal::default());
 
-        let mut has_visible_plugins = false;
-        for (plugin_index, plugin) in self.plugins.iter().enumerate() {
-            if !self.config.is_enabled(&plugin.name) {
-                continue;
-            }
+                        for (entry_index, entry) in plugin.menu_entries().iter().enumerate() {
+                            if entry.separator {
+                                content = content.push(divider::horizontal::default());
+                                continue;
+                            }
 
-            has_visible_plugins = true;
-            content = content.push(text::body(plugin.title().to_owned()).size(14));
+                            content =
+                                content.push(render_entry(plugin_index, entry_index, entry, false));
 
-            if plugin.cycle_items().len() > 1 {
-                content = content.push(text::body(
-                    fl!("cycle-items", items = plugin.cycle_items().join(" | ")).to_string(),
-                ));
-            }
+                            if let Some(alternate) = entry.alternate.as_ref() {
+                                content = content.push(render_entry(
+                                    plugin_index,
+                                    entry_index,
+                                    alternate,
+                                    true,
+                                ));
+                            }
+                        }
+                    } else {
+                        content = content.push(text::body(fl!("no-selected-plugins")));
+                    }
+                } else {
+                    let mut has_visible_plugins = false;
+                    for (plugin_index, plugin) in self.plugins.iter().enumerate() {
+                        if !self.config.is_enabled(&plugin.name) {
+                            continue;
+                        }
 
-            if let Some(error) = &plugin.last_error {
-                content = content.push(text::body(fl!("plugin-error", error = error)));
-            }
+                        has_visible_plugins = true;
+                        content = content.push(text::body(plugin.title().to_owned()).size(14));
 
-            for (entry_index, entry) in plugin.menu_entries().iter().enumerate() {
-                if entry.separator {
-                    content = content.push(divider::horizontal::default());
-                    continue;
+                        if plugin.cycle_items().len() > 1 {
+                            content = content.push(text::body(
+                                fl!("cycle-items", items = plugin.cycle_items().join(" | "))
+                                    .to_string(),
+                            ));
+                        }
+
+                        if let Some(error) = &plugin.last_error {
+                            content = content.push(text::body(fl!("plugin-error", error = error)));
+                        }
+
+                        for (entry_index, entry) in plugin.menu_entries().iter().enumerate() {
+                            if entry.separator {
+                                content = content.push(divider::horizontal::default());
+                                continue;
+                            }
+
+                            content =
+                                content.push(render_entry(plugin_index, entry_index, entry, false));
+
+                            if let Some(alternate) = entry.alternate.as_ref() {
+                                content = content.push(render_entry(
+                                    plugin_index,
+                                    entry_index,
+                                    alternate,
+                                    true,
+                                ));
+                            }
+                        }
+
+                        content = content.push(divider::horizontal::default());
+                    }
+
+                    if !self.plugins.is_empty() && !has_visible_plugins {
+                        content = content.push(text::body(fl!("no-selected-plugins")));
+                    }
                 }
 
-                content = content.push(render_entry(plugin_index, entry_index, entry, false));
-
-                if let Some(alternate) = entry.alternate.as_ref() {
-                    content =
-                        content.push(render_entry(plugin_index, entry_index, alternate, true));
-                }
+                content = content.push(divider::horizontal::default()).push(
+                    menu_button(text::body(fl!("bar-settings")))
+                        .padding([2, 0])
+                        .on_press(Message::OpenBarSettings),
+                );
             }
-
-            content = content.push(divider::horizontal::default());
+            PopupView::Settings => {
+                content = build_bar_settings_view(content, &self.plugins, &self.config);
+            }
         }
-
-        if !self.plugins.is_empty() && !has_visible_plugins {
-            content = content.push(text::body(fl!("no-selected-plugins")));
-        }
-
-        content = content
-            .push(divider::horizontal::default())
-            .push(menu_button(text::body(fl!("refresh-now"))).on_press(Message::RefreshAll))
-            .push(divider::horizontal::default())
-            .push(menu_button(text::body(fl!("about"))).on_press(Message::OpenAbout));
 
         self.core
             .applet
@@ -389,6 +459,30 @@ impl cosmic::Application for CBarApplet {
 }
 
 impl CBarApplet {
+    fn open_popup(&mut self, plugin_index: Option<usize>) -> Task<Message> {
+        let previous_popup = self.popup.take();
+        let new_id = window::Id::unique();
+        self.popup = Some(new_id);
+        self.popup_plugin_index = plugin_index;
+        self.popup_view = PopupView::Menu;
+
+        let popup_settings = self.core.applet.get_popup_settings(
+            self.core.main_window_id().unwrap(),
+            new_id,
+            Some((420, 520)),
+            None,
+            None,
+        );
+
+        let mut tasks = Vec::new();
+        if let Some(popup) = previous_popup {
+            tasks.push(destroy_popup(popup));
+        }
+        tasks.push(get_popup(popup_settings));
+
+        Task::batch(tasks)
+    }
+
     fn spawn_due_refreshes(&mut self, force: bool) -> Task<Message> {
         let now = Instant::now();
         let mut tasks = Vec::new();
@@ -539,7 +633,7 @@ fn render_entry(
         label.push_str(" ↗");
     }
 
-    let left_padding = 12 + (entry.level as u16 * 16) + if is_alternate { 12 } else { 0 };
+    let left_padding = 20 + (entry.level as u16 * 16) + if is_alternate { 12 } else { 0 };
     let mut entry_row = row![]
         .spacing(8)
         .align_y(Alignment::Center)
@@ -565,6 +659,7 @@ fn render_entry(
     }
 
     menu_button(content)
+        .padding([2, 0])
         .on_press(Message::RunEntry {
             plugin_index,
             entry_index,
@@ -606,43 +701,27 @@ async fn open_repository() -> Result<(), String> {
     Ok(())
 }
 
-fn panel_label(plugins: &[PluginState], config: &AppConfig, status: &str) -> String {
-    let labels = plugins
-        .iter()
-        .filter(|plugin| config.is_enabled(&plugin.name))
-        .filter_map(|plugin| {
-            let title = plugin.title().trim();
-            if title.is_empty() {
-                None
-            } else {
-                Some(title.to_owned())
-            }
-        })
-        .collect::<Vec<_>>();
-
-    if labels.is_empty() {
-        status.to_owned()
+fn plugin_panel_label(plugin: &PluginState) -> String {
+    let title = plugin.panel_title().trim();
+    if !title.is_empty() {
+        title.to_owned()
+    } else if plugin.title_image().is_some() {
+        String::new()
     } else {
-        labels.join(" | ")
+        plugin.name.clone()
     }
 }
 
-fn panel_content<'a>(
-    plugins: &'a [PluginState],
-    config: &'a AppConfig,
-    status: &'a str,
-) -> Element<'a, Message> {
-    let label = panel_label(plugins, config, status);
+fn plugin_panel_content(plugin: &PluginState) -> Element<'_, Message> {
+    let label = plugin_panel_label(plugin);
     let mut content = row![]
         .spacing(6)
         .align_y(Alignment::Center)
         .width(Length::Shrink);
 
-    if let Some(image) = plugins
-        .iter()
-        .find(|plugin| config.is_enabled(&plugin.name) && plugin.title_image().is_some())
-        .and_then(|plugin| plugin.title_image())
-        .and_then(|image| image_element(image, 18))
+    if let Some(image) = plugin
+        .title_image()
+        .and_then(|image| panel_image_element(image, 18))
     {
         content = content.push(image);
     }
@@ -652,6 +731,106 @@ fn panel_content<'a>(
     }
 
     content.into()
+}
+
+fn status_panel_content(status: &str) -> Element<'_, Message> {
+    row![text::body(status)]
+        .spacing(6)
+        .align_y(Alignment::Center)
+        .width(Length::Shrink)
+        .into()
+}
+
+fn build_bar_settings_view<'a>(
+    mut content: cosmic::widget::Column<'a, Message, cosmic::Theme>,
+    plugins: &'a [PluginState],
+    config: &'a AppConfig,
+) -> cosmic::widget::Column<'a, Message, cosmic::Theme> {
+    let enabled_count = plugins
+        .iter()
+        .filter(|plugin| config.is_enabled(&plugin.name))
+        .count();
+
+    content = content
+        .push(menu_button(text::body(fl!("back"))).on_press(Message::CloseBarSettings))
+        .push(divider::horizontal::default())
+        .push(text::body(fl!("bar-settings")).size(14))
+        .push(
+            widget::container(
+                text::body(
+                    fl!(
+                        "visible-plugins",
+                        enabled = enabled_count,
+                        total = plugins.len()
+                    )
+                    .to_string(),
+                )
+                .size(13),
+            )
+            .padding([0, 0, 0, 16]),
+        )
+        .push(indented_menu_button(
+            fl!("reload-plugin-directory"),
+            Message::ReloadPlugins,
+        ));
+
+    if plugins.is_empty() {
+        content = content.push(
+            widget::container(text::body(fl!("no-executable-plugins"))).padding([0, 0, 0, 16]),
+        );
+    } else {
+        for plugin in plugins {
+            let marker = if config.is_enabled(&plugin.name) {
+                "✓"
+            } else {
+                "○"
+            };
+            content = content.push(indented_menu_button(
+                format!("{marker} {}", plugin.name),
+                Message::TogglePluginSelection(plugin.name.clone()),
+            ));
+        }
+    }
+
+    content
+        .push(divider::horizontal::default())
+        .push(indented_menu_button(
+            fl!("refresh-now"),
+            Message::RefreshAll,
+        ))
+        .push(indented_menu_button(fl!("about"), Message::OpenAbout))
+}
+
+fn indented_menu_button<'a>(label: impl Into<String>, message: Message) -> Element<'a, Message> {
+    menu_button(
+        widget::container(text::body(label.into()))
+            .padding([0, 0, 0, 16])
+            .width(Length::Fill),
+    )
+    .padding([2, 0])
+    .on_press(message)
+    .into()
+}
+
+fn panel_image_element(image: &EmbeddedImage, height: u16) -> Option<Element<'static, Message>> {
+    Some(if image.is_svg {
+        svg::Svg::new(svg::Handle::from_memory(image.bytes.clone()))
+            .symbolic(image.is_template)
+            .height(Length::Fixed(f32::from(height)))
+            .width(Length::Shrink)
+            .content_fit(ContentFit::Contain)
+            .into()
+    } else {
+        let image_handle = match icon::from_raster_bytes(image.bytes.clone()).data {
+            IconData::Image(handle) => handle,
+            IconData::Svg(_) => return None,
+        };
+        Image::new(image_handle)
+            .height(Length::Fixed(f32::from(height)))
+            .width(Length::Shrink)
+            .content_fit(ContentFit::Contain)
+            .into()
+    })
 }
 
 fn image_element(image: &EmbeddedImage, size: u16) -> Option<Element<'static, Message>> {
