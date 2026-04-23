@@ -158,6 +158,14 @@ The installer reuses the desktop entry and icons from the repository and install
 - icons under `~/.local/share/icons/hicolor/scalable/apps/`
 - the example plugin in `~/.config/cbar/plugins/` if it does not already exist
 
+If you prefer a direct installation from GitHub without cloning the repository first, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alexandreprates/cbar/main/scripts/install-latest.sh | bash
+```
+
+The remote installer resolves the latest published release automatically, installs the binary and desktop assets under `~/.local`, creates `~/.config/cbar/plugins`, and copies the example plugins that exist for that tagged release.
+
 If the archive is placed in the repository root, the script can also autodetect it:
 
 ```bash
