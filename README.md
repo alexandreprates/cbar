@@ -142,14 +142,34 @@ just uninstall-local
 
 ## Installing from a GitHub Release
 
-If you want to install the prebuilt release binary without compiling locally, download the release archive and run the dedicated installer from the repository:
+If you want to install the prebuilt release binary without compiling locally, clone the repository and let the installer resolve the latest published release automatically:
 
 ```bash
 git clone git@github.com:alexandreprates/cbar.git
 cd cbar
-curl -LO https://github.com/alexandreprates/cbar/releases/download/v1.2.0/cbar-v1.2.0-x86_64-unknown-linux-gnu.tar.gz
-./scripts/install-from-release.sh ./cbar-v1.2.0-x86_64-unknown-linux-gnu.tar.gz
+./scripts/install-from-release.sh
 ```
+
+If you already downloaded a release archive, you can still pass it explicitly:
+
+```bash
+git clone git@github.com:alexandreprates/cbar.git
+cd cbar
+
+version="v1.2.0"
+archive="cbar-${version}-x86_64-unknown-linux-gnu.tar.gz"
+
+curl -LO "https://github.com/alexandreprates/cbar/releases/download/${version}/${archive}"
+./scripts/install-from-release.sh "./${archive}"
+```
+
+The script also accepts the archive path through `CBAR_RELEASE_ARCHIVE`:
+
+```bash
+CBAR_RELEASE_ARCHIVE=./cbar-v1.2.0-x86_64-unknown-linux-gnu.tar.gz ./scripts/install-from-release.sh
+```
+
+Without an explicit archive path, `scripts/install-from-release.sh` first looks for exactly one local `cbar-*-x86_64-unknown-linux-gnu.tar.gz` file in the repository root. If none is available, it queries the latest GitHub release, resolves the current tag, and downloads the matching versioned archive automatically.
 
 The installer reuses the desktop entry and icons from the repository and installs:
 
@@ -166,7 +186,7 @@ curl -fsSL https://raw.githubusercontent.com/alexandreprates/cbar/main/scripts/i
 
 The remote installer resolves the latest published release automatically, installs the binary and desktop assets under `~/.local`, creates `~/.config/cbar/plugins`, and copies the example plugins that exist for that tagged release.
 
-If the archive is placed in the repository root, the script can also autodetect it:
+If the archive is placed in the repository root, the repository installer can autodetect it as well:
 
 ```bash
 ./scripts/install-from-release.sh

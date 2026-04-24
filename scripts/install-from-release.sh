@@ -3,6 +3,10 @@
 set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_owner="${CBAR_REPO_OWNER:-alexandreprates}"
+repo_name="${CBAR_REPO_NAME:-cbar}"
+repo_slug="${repo_owner}/${repo_name}"
+target="${CBAR_TARGET:-x86_64-unknown-linux-gnu}"
 prefix="${CBAR_PREFIX:-$HOME/.local}"
 bin_dir="${prefix}/bin"
 app_dir="${prefix}/share/applications"
@@ -11,9 +15,70 @@ plugin_dir="${CBAR_PLUGIN_DIR:-$HOME/.config/cbar/plugins}"
 binary_path="${bin_dir}/cbar"
 desktop_template="${repo_root}/data/io.github.alexprates.CBar.desktop.in"
 desktop_target="${app_dir}/io.github.alexprates.CBar.desktop"
+release_api_url="https://api.github.com/repos/${repo_slug}/releases/latest"
 archive_path="${1:-${CBAR_RELEASE_ARCHIVE:-}}"
 
-resolve_archive_path() {
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    printf 'Missing required command: %s\n' "$1" >&2
+    exit 1
+  fi
+}
+
+download_to() {
+  local url="$1"
+  local destination="$2"
+
+  curl --fail --location --silent --show-error "$url" --output "$destination"
+}
+
+latest_release_json() {
+  curl \
+    --fail \
+    --location \
+    --silent \
+    --show-error \
+    -H "Accept: application/vnd.github+json" \
+    "$release_api_url"
+}
+
+resolve_release_tag() {
+  local release_json="$1"
+  local tag
+
+  tag="$(printf '%s' "$release_json" | tr -d '\n' | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+
+  if [[ -z "$tag" ]]; then
+    printf 'Failed to resolve the latest release tag from %s\n' "$release_api_url" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$tag"
+}
+
+download_latest_archive() {
+  local release_json
+  local release_tag
+  local asset_name
+  local download_url
+  local destination
+
+  require_command curl
+  require_command sed
+  require_command tr
+
+  release_json="$(latest_release_json)"
+  release_tag="$(resolve_release_tag "$release_json")"
+  asset_name="cbar-${release_tag}-${target}.tar.gz"
+  download_url="https://github.com/${repo_slug}/releases/download/${release_tag}/${asset_name}"
+  destination="${tmp_dir}/${asset_name}"
+
+  download_to "$download_url" "$destination"
+
+  printf '%s\n' "$destination"
+}
+
+resolve_or_download_archive_path() {
   if [[ -n "${archive_path}" ]]; then
     printf '%s\n' "${archive_path}"
     return 0
@@ -28,17 +93,12 @@ resolve_archive_path() {
     return 0
   fi
 
-  printf 'Usage: %s <release-archive.tar.gz>\n' "${0}" >&2
-  printf 'Or place exactly one cbar release archive in %s\n' "${repo_root}" >&2
-  return 1
+  if (( ${#matches[@]} > 1 )); then
+    printf 'Found multiple local release archives in %s; downloading the latest published release instead.\n' "${repo_root}" >&2
+  fi
+
+  download_latest_archive
 }
-
-archive_path="$(resolve_archive_path)"
-
-if [[ ! -f "${archive_path}" ]]; then
-  printf 'Release archive not found: %s\n' "${archive_path}" >&2
-  exit 1
-fi
 
 if [[ ! -f "${desktop_template}" ]]; then
   printf 'Desktop template not found: %s\n' "${desktop_template}" >&2
@@ -47,6 +107,13 @@ fi
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
+
+archive_path="$(resolve_or_download_archive_path)"
+
+if [[ ! -f "${archive_path}" ]]; then
+  printf 'Release archive not found: %s\n' "${archive_path}" >&2
+  exit 1
+fi
 
 tar -xzf "${archive_path}" -C "${tmp_dir}"
 
