@@ -30,8 +30,8 @@ install -m 0644 \
 sed "s|__CBAR_EXEC__|${binary_path}|g" "${desktop_template}" > "${desktop_target}"
 install -m 0644 "${metainfo_file}" "${metainfo_dir}/io.github.alexprates.CBar.metainfo.xml"
 
-if [[ ! -e "${plugin_dir}/demo.10s.sh" ]]; then
-  install -m 0755 "${repo_root}/plugins/demo.10s.sh" "${plugin_dir}/demo.10s.sh"
+if [[ ! -e "${plugin_dir}/showcase-overview.10s.sh" ]]; then
+  install -m 0755 "${repo_root}/plugins/showcase-overview.10s.sh" "${plugin_dir}/showcase-overview.10s.sh"
 fi
 
 if command -v update-desktop-database >/dev/null 2>&1; then

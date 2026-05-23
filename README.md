@@ -82,7 +82,7 @@ The plugin output format is inspired by [xbar](https://github.com/matryer/xbar),
 2. `./plugins` when running from the repository
 3. `~/.config/cbar/plugins`
 
-An example plugin is included at [plugins/demo.10s.sh](plugins/demo.10s.sh).
+Showcase plugins are included under [plugins/](plugins/) to demonstrate panel output, popup structure, actions, environment configuration, refresh behavior, and dynamic status rows.
 
 ## Plugin Catalog
 
@@ -115,6 +115,13 @@ echo "Open terminal task | bash=/bin/bash param1=-lc param2='htop' terminal=true
 echo "Hidden helper | dropdown=false"
 echo "Disabled item | disabled=true"
 ```
+
+Additional examples:
+
+- [plugins/showcase-overview.10s.sh](plugins/showcase-overview.10s.sh) demonstrates panel titles, cycle items, popup rows, nesting, alternates, hidden rows, disabled rows, and refresh.
+- [plugins/showcase-actions.30s.sh](plugins/showcase-actions.30s.sh) demonstrates links, shell actions, terminal actions, and refresh-after-action.
+- [plugins/showcase-config.1m.sh](plugins/showcase-config.1m.sh) demonstrates environment-variable driven plugin behavior.
+- [plugins/showcase-status.5s.sh](plugins/showcase-status.5s.sh) demonstrates dynamic local status, thresholds, separators, and diagnostics.
 
 ## Build Requirements
 
@@ -158,7 +165,7 @@ This installs:
 - `~/.local/bin/cbar`
 - `~/.local/share/applications/io.github.alexprates.CBar.desktop`
 - icons under `~/.local/share/icons/hicolor/scalable/apps/`
-- the example plugin in `~/.config/cbar/plugins/` if it does not already exist
+- the overview showcase plugin in `~/.config/cbar/plugins/` if it does not already exist
 
 You can remove the local installation with:
 
@@ -209,7 +216,7 @@ The installer reuses the desktop entry and icons from the repository and install
 - `~/.local/bin/cbar`
 - `~/.local/share/applications/io.github.alexprates.CBar.desktop`
 - icons under `~/.local/share/icons/hicolor/scalable/apps/`
-- the example plugin in `~/.config/cbar/plugins/` if it does not already exist
+- the overview showcase plugin in `~/.config/cbar/plugins/` if it does not already exist
 
 If you prefer a direct installation from GitHub without cloning the repository first, run:
 
@@ -217,7 +224,7 @@ If you prefer a direct installation from GitHub without cloning the repository f
 curl -fsSL https://raw.githubusercontent.com/alexandreprates/cbar/main/scripts/install-latest.sh | bash
 ```
 
-The remote installer resolves the latest published release automatically, installs the binary and desktop assets under `~/.local`, creates `~/.config/cbar/plugins`, and copies the example plugins that exist for that tagged release.
+The remote installer resolves the latest published release automatically, installs the binary and desktop assets under `~/.local`, creates `~/.config/cbar/plugins`, and copies the showcase plugins that exist for that tagged release.
 
 If the archive is placed in the repository root, the repository installer can autodetect it as well:
 
@@ -265,7 +272,7 @@ src/parser.rs     plugin output parsing
 data/             desktop entry template and icons
 packaging/        Flatpak manifest for local packaging and COSMIC submission prep
 scripts/          local install and uninstall scripts
-plugins/          example plugins for development
+plugins/          showcase plugins for development
 ```
 
 ## Limitations

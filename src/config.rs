@@ -86,8 +86,8 @@ mod tests {
     fn saves_and_loads_plugin_selection() {
         let path = unique_test_path("roundtrip");
         let mut enabled_plugins = BTreeSet::new();
-        enabled_plugins.insert("demo.10s.sh".to_owned());
-        enabled_plugins.insert("glados-monitor.30s.sh".to_owned());
+        enabled_plugins.insert("showcase-overview.10s.sh".to_owned());
+        enabled_plugins.insert("showcase-status.5s.sh".to_owned());
 
         let config = AppConfig {
             enabled_plugins: Some(enabled_plugins.clone()),

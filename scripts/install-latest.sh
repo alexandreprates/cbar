@@ -14,10 +14,11 @@ plugin_dir="${CBAR_PLUGIN_DIR:-$HOME/.config/cbar/plugins}"
 binary_path="${bin_dir}/cbar"
 desktop_target="${app_dir}/io.github.alexprates.CBar.desktop"
 release_api_url="https://api.github.com/repos/${repo_slug}/releases/latest"
-example_plugins=(
-  "demo.10s.sh"
-  "glados-monitor.30s.sh"
-  "openai_codex.5m.sh"
+showcase_plugins=(
+  "showcase-overview.10s.sh"
+  "showcase-actions.30s.sh"
+  "showcase-config.1m.sh"
+  "showcase-status.5s.sh"
 )
 
 require_command() {
@@ -71,10 +72,10 @@ install_optional_plugin() {
 
   if download_to "${raw_base_url}/plugins/${plugin_name}" "$tmp_plugin"; then
     install -m 0755 "$tmp_plugin" "$destination"
-    printf 'Installed example plugin: %s\n' "$destination"
+    printf 'Installed showcase plugin: %s\n' "$destination"
   else
     rm -f "$tmp_plugin"
-    printf 'Skipped unavailable example plugin for %s: %s\n' "$release_tag" "$plugin_name"
+    printf 'Skipped unavailable showcase plugin for %s: %s\n' "$release_tag" "$plugin_name"
   fi
 }
 
@@ -122,7 +123,7 @@ install -m 0644 "$app_icon" "${icon_dir}/io.github.alexprates.CBar.svg"
 
 sed "s|__CBAR_EXEC__|${binary_path}|g" "$desktop_template" > "$desktop_target"
 
-for plugin_name in "${example_plugins[@]}"; do
+for plugin_name in "${showcase_plugins[@]}"; do
   install_optional_plugin "$raw_base_url" "$plugin_name"
 done
 
