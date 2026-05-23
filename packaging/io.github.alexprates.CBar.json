@@ -1,0 +1,51 @@
+{
+  "$schema": "https://raw.githubusercontent.com/flatpak/flatpak-builder/main/data/flatpak-manifest.schema.json",
+  "id": "io.github.alexprates.CBar",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "24.08",
+  "sdk": "org.freedesktop.Sdk",
+  "sdk-extensions": [
+    "org.freedesktop.Sdk.Extension.rust-stable"
+  ],
+  "command": "cbar",
+  "finish-args": [
+    "--share=ipc",
+    "--share=network",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--device=dri",
+    "--filesystem=xdg-config/cbar:rw",
+    "--filesystem=xdg-config/cosmic:rw",
+    "--talk-name=com.system76.CosmicSettingsDaemon",
+    "--talk-name=org.freedesktop.portal.Desktop"
+  ],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": {
+      "CARGO_HOME": "/run/build/cbar/cargo"
+    }
+  },
+  "modules": [
+    {
+      "name": "cbar",
+      "buildsystem": "simple",
+      "build-commands": [
+        "cargo --offline fetch --manifest-path Cargo.toml",
+        "cargo --offline build --release",
+        "install -Dm0755 target/release/cbar -t /app/bin/",
+        "sed 's|__CBAR_EXEC__|/app/bin/cbar|g' data/io.github.alexprates.CBar.desktop.in > io.github.alexprates.CBar.desktop",
+        "install -Dm0644 io.github.alexprates.CBar.desktop -t /app/share/applications/",
+        "install -Dm0644 data/io.github.alexprates.CBar.metainfo.xml -t /app/share/metainfo/",
+        "install -Dm0644 data/icons/scalable/apps/io.github.alexprates.CBar.svg -t /app/share/icons/hicolor/scalable/apps/",
+        "install -Dm0644 data/icons/scalable/apps/io.github.alexprates.CBar-symbolic.svg -t /app/share/icons/hicolor/scalable/apps/"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": ".."
+        },
+        "cargo-sources.json"
+      ]
+    }
+  ]
+}

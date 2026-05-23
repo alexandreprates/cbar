@@ -1,4 +1,5 @@
 mod app;
+mod catalog;
 mod config;
 mod localize;
 mod parser;

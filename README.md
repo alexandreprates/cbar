@@ -4,28 +4,32 @@
 [![Rust](https://img.shields.io/badge/rust-1.94%2B-orange.svg)](https://www.rust-lang.org/)
 [![COSMIC](https://img.shields.io/badge/COSMIC-applet-7c3aed.svg)](https://system76.com/cosmic)
 
-`cbar` is a feature-complete [COSMIC](https://system76.com/cosmic) applet for Pop!_OS, inspired by [xbar](https://github.com/matryer/xbar), aimed at early adopters, and ready for community feedback.
+`cbar` is a [COSMIC](https://system76.com/cosmic) panel applet for Pop!_OS that runs local scripts and turns their output into live panel text and interactive popup actions.
 
-It executes local plugins on a refresh interval and renders their output as:
+It is designed for small, scriptable workflows that belong in the desktop panel:
 
-- panel text in the COSMIC top bar
-- interactive entries inside the applet popup
+- show status from local commands or web APIs
+- open links and tools from a lightweight popup
+- run shell actions without building a full desktop app
+- refresh each plugin on its own interval
+- keep plugin behavior transparent and easy to inspect
 
-The project aims to bring an xbar-like plugin workflow to COSMIC while following `libcosmic` applet patterns.
+`cbar` is built around COSMIC and `libcosmic` applet behavior.
 
 ## Status
 
-`cbar` is currently a prototype.
+`cbar` is currently ready for early adopters and community feedback.
 
-It already supports:
+It supports:
 
-- a working `libcosmic` applet
+- a working `libcosmic` panel applet
 - plugin discovery from a local directory
-- periodic plugin execution based on xbar-style filename intervals
-- popup menu actions
+- periodic plugin execution based on filename intervals
+- per-plugin parallel refresh with in-flight protection
+- popup menu actions for links, shell commands, refreshes, and terminal tasks
 - local installation for testing in a COSMIC session
 
-It does not aim to be fully xbar-compatible yet.
+The implementation is intentionally focused on practical COSMIC integration.
 
 ## Features
 
@@ -35,11 +39,14 @@ It does not aim to be fully xbar-compatible yet.
 - per-plugin refresh scheduling
 - per-plugin parallel refresh with per-plugin in-flight protection
 - local plugin execution with support for shell actions, URLs, and terminal actions
+- plugin catalog browsing and installation from the applet settings
 - local install script for user-level testing
 
-## Current xbar-style Compatibility
+## Plugin Output Format
 
-The current implementation supports a focused subset of xbar behavior:
+Plugins write plain text to stdout. The first visible line becomes panel text, and lines after `---` become popup entries.
+
+Supported item syntax:
 
 - first line as panel title
 - `---` to separate panel output from popup items
@@ -56,8 +63,12 @@ The current implementation supports a focused subset of xbar behavior:
 
 Notes:
 
-- `alternate=true` is adapted for COSMIC by rendering an explicit `[alt]` entry in the popup. xbar normally exposes alternates through modifier-key behavior that does not map directly to this applet UI.
+- `alternate=true` is adapted for COSMIC by rendering an explicit `[alt]` entry in the popup. Modifier-key alternate entries do not map directly to this applet UI.
 - nested menu items are currently rendered as indented entries, not true nested popup submenus.
+
+## Inspiration
+
+The plugin output format is inspired by [xbar](https://github.com/matryer/xbar), while the applet itself is designed specifically for COSMIC.
 
 ## Plugin Directory
 
@@ -68,6 +79,24 @@ Notes:
 3. `~/.config/cbar/plugins`
 
 An example plugin is included at [plugins/demo.10s.sh](plugins/demo.10s.sh).
+
+## Plugin Catalog
+
+The applet settings include a plugin catalog view backed by the public [cbar-plugins](https://github.com/alexandreprates/cbar-plugins) repository.
+
+Catalog installation downloads the selected plugin script into the active plugin directory, validates the published SHA-256 checksum, marks the file executable, and reloads the plugin list. Catalog plugins are local scripts and run as the current user.
+
+By default, `cbar` loads:
+
+```text
+https://raw.githubusercontent.com/alexandreprates/cbar-plugins/main/registry/plugins.json
+```
+
+To test another registry:
+
+```bash
+CBAR_PLUGIN_REGISTRY_URL="https://example.com/plugins.json" cargo run
+```
 
 ## Example Plugin
 
@@ -228,31 +257,29 @@ just test
 ```text
 src/app.rs        COSMIC applet state, messages, popup UI, refresh orchestration
 src/plugin.rs     plugin discovery, execution, action dispatch
-src/parser.rs     xbar-style output parsing
+src/parser.rs     plugin output parsing
 data/             desktop entry template and icons
+packaging/        Flatpak manifest for local packaging and COSMIC submission prep
 scripts/          local install and uninstall scripts
 plugins/          example plugins for development
 ```
 
 ## Limitations
 
-- xbar compatibility is partial
 - nested popup items are visual indentation only
 - plugin discovery is static after startup
 - no persistent plugin configuration UI yet
-- visual parameters such as many xbar styling flags are not fully implemented
+- some visual plugin item parameters are not mapped to COSMIC UI yet
 
 ## Roadmap
 
-- improve xbar compatibility
 - add dynamic plugin discovery
-- support more visual item parameters
+- support more plugin item parameters where they fit COSMIC
 - improve popup hierarchy and action presentation
 - package the applet for easier installation
 
 ## Related Projects
 
-- [xbar](https://github.com/matryer/xbar)
 - [cosmic-applets](https://github.com/pop-os/cosmic-applets)
 - [libcosmic](https://github.com/pop-os/libcosmic)
 

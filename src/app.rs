@@ -1,3 +1,4 @@
+use crate::catalog::{CatalogPlugin, fetch_catalog, install_catalog_plugin};
 use crate::config::{AppConfig, default_config_path, load_config, save_config};
 use crate::fl;
 use crate::parser::EmbeddedImage;
@@ -15,7 +16,7 @@ use cosmic::widget::{
     text,
 };
 use cosmic::{Element, widget};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 use tokio::process::Command;
@@ -42,12 +43,17 @@ struct CBarApplet {
     refresh_in_flight: Vec<bool>,
     pending_refresh: Vec<bool>,
     pending_force_refresh: Vec<bool>,
+    catalog_plugins: Vec<CatalogPlugin>,
+    catalog_loading: bool,
+    catalog_installing: Option<String>,
+    catalog_status: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PopupView {
     Menu,
     Settings,
+    Catalog,
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +71,11 @@ enum Message {
     },
     RefreshAll,
     TogglePluginSelection(String),
+    OpenPluginCatalog,
+    ReloadPluginCatalog,
+    CatalogLoaded(Result<Vec<CatalogPlugin>, String>),
+    InstallCatalogPlugin(String),
+    CatalogPluginInstalled(Result<String, String>),
     OpenAbout,
     AboutOpened(Result<(), String>),
     ConfigSaved(Result<(), String>),
@@ -103,6 +114,10 @@ impl cosmic::Application for CBarApplet {
                 refresh_in_flight: Vec::new(),
                 pending_refresh: Vec::new(),
                 pending_force_refresh: Vec::new(),
+                catalog_plugins: Vec::new(),
+                catalog_loading: false,
+                catalog_installing: None,
+                catalog_status: None,
             },
             Task::perform(
                 load_plugins(plugin_dir),
@@ -217,6 +232,75 @@ impl cosmic::Application for CBarApplet {
                     });
                 let save_task = self.persist_config();
                 return Task::batch(vec![refresh_task, save_task]);
+            }
+            Message::OpenPluginCatalog => {
+                self.popup_view = PopupView::Catalog;
+
+                if self.catalog_plugins.is_empty() && !self.catalog_loading {
+                    self.catalog_loading = true;
+                    self.catalog_status = Some(fl!("catalog-loading"));
+                    return Task::perform(fetch_catalog(), app_message(Message::CatalogLoaded));
+                }
+            }
+            Message::ReloadPluginCatalog => {
+                self.catalog_loading = true;
+                self.catalog_status = Some(fl!("catalog-loading"));
+                return Task::perform(fetch_catalog(), app_message(Message::CatalogLoaded));
+            }
+            Message::CatalogLoaded(result) => {
+                self.catalog_loading = false;
+                match result {
+                    Ok(plugins) => {
+                        let count = plugins.len();
+                        self.catalog_plugins = plugins;
+                        self.catalog_status =
+                            Some(fl!("catalog-loaded", count = count).to_string());
+                    }
+                    Err(err) => {
+                        self.catalog_status = Some(err);
+                    }
+                }
+            }
+            Message::InstallCatalogPlugin(plugin_id) => {
+                let Some(plugin) = self
+                    .catalog_plugins
+                    .iter()
+                    .find(|plugin| plugin.id == plugin_id)
+                    .cloned()
+                else {
+                    self.catalog_status = Some(fl!("catalog-plugin-not-found").to_string());
+                    return Task::none();
+                };
+
+                self.catalog_installing = Some(plugin.id.clone());
+                self.catalog_status =
+                    Some(fl!("catalog-installing", name = plugin.name.clone()).to_string());
+                return Task::perform(
+                    install_catalog_plugin(self.plugin_dir.clone(), plugin),
+                    app_message(Message::CatalogPluginInstalled),
+                );
+            }
+            Message::CatalogPluginInstalled(result) => {
+                self.catalog_installing = None;
+
+                match result {
+                    Ok(plugin_name) => {
+                        if let Some(enabled_plugins) = self.config.enabled_plugins.as_mut() {
+                            enabled_plugins.insert(plugin_name.clone());
+                        }
+
+                        self.catalog_status =
+                            Some(fl!("catalog-installed", name = plugin_name).to_string());
+                        let reload_task = Task::perform(
+                            load_plugins(self.plugin_dir.clone()),
+                            app_message(Message::PluginsLoaded),
+                        );
+                        return Task::batch(vec![reload_task, self.persist_config()]);
+                    }
+                    Err(err) => {
+                        self.catalog_status = Some(err);
+                    }
+                }
             }
             Message::OpenAbout => {
                 return Task::perform(open_repository(), app_message(Message::AboutOpened));
@@ -437,6 +521,16 @@ impl cosmic::Application for CBarApplet {
             }
             PopupView::Settings => {
                 content = build_bar_settings_view(content, &self.plugins, &self.config);
+            }
+            PopupView::Catalog => {
+                content = build_catalog_view(
+                    content,
+                    &self.catalog_plugins,
+                    &self.plugin_dir,
+                    self.catalog_loading,
+                    self.catalog_installing.as_deref(),
+                    self.catalog_status.as_deref(),
+                );
             }
         }
 
@@ -795,10 +889,105 @@ fn build_bar_settings_view<'a>(
     content
         .push(divider::horizontal::default())
         .push(indented_menu_button(
+            fl!("explore-plugin-catalog"),
+            Message::OpenPluginCatalog,
+        ))
+        .push(indented_menu_button(
             fl!("refresh-now"),
             Message::RefreshAll,
         ))
         .push(indented_menu_button(fl!("about"), Message::OpenAbout))
+}
+
+fn build_catalog_view<'a>(
+    mut content: cosmic::widget::Column<'a, Message, cosmic::Theme>,
+    catalog_plugins: &'a [CatalogPlugin],
+    plugin_dir: &'a Path,
+    loading: bool,
+    installing: Option<&'a str>,
+    status: Option<&'a str>,
+) -> cosmic::widget::Column<'a, Message, cosmic::Theme> {
+    content = content
+        .push(menu_button(text::body(fl!("back"))).on_press(Message::OpenBarSettings))
+        .push(divider::horizontal::default())
+        .push(text::body(fl!("plugin-catalog")).size(14))
+        .push(
+            widget::container(text::body(fl!("catalog-security-note")).size(13))
+                .padding([0, 0, 0, 16]),
+        )
+        .push(indented_menu_button(
+            if loading {
+                fl!("catalog-loading")
+            } else {
+                fl!("reload-plugin-catalog")
+            },
+            Message::ReloadPluginCatalog,
+        ));
+
+    if let Some(status) = status {
+        content =
+            content.push(widget::container(text::body(status.to_owned())).padding([0, 0, 0, 16]));
+    }
+
+    if catalog_plugins.is_empty() && !loading {
+        return content
+            .push(widget::container(text::body(fl!("catalog-empty"))).padding([0, 0, 0, 16]));
+    }
+
+    for plugin in catalog_plugins {
+        let installed = plugin
+            .installed_path(plugin_dir)
+            .is_ok_and(|path| path.exists());
+        let is_installing = installing.is_some_and(|plugin_id| plugin_id == plugin.id);
+
+        content = content.push(divider::horizontal::default()).push(
+            widget::container(
+                column![
+                    text::body(format!("{} · {}", plugin.name, plugin.category)).size(13),
+                    text::body(plugin.description.clone()),
+                    text::body(format!(
+                        "{} · {} · {}",
+                        plugin.interval, plugin.language, plugin.license
+                    ))
+                    .size(12),
+                    text::body(format_metadata("deps", &plugin.dependencies)).size(12),
+                    text::body(format_metadata("env", &plugin.env)).size(12),
+                ]
+                .spacing(1),
+            )
+            .padding([0, 0, 0, 16]),
+        );
+
+        if installed {
+            content = content.push(
+                widget::container(text::body(fl!("catalog-installed-marker")))
+                    .padding([0, 0, 0, 16]),
+            );
+        } else if is_installing {
+            content = content.push(
+                widget::container(text::body(fl!(
+                    "catalog-installing",
+                    name = plugin.name.clone()
+                )))
+                .padding([0, 0, 0, 16]),
+            );
+        } else {
+            content = content.push(indented_menu_button(
+                fl!("catalog-install", name = plugin.name.clone()),
+                Message::InstallCatalogPlugin(plugin.id.clone()),
+            ));
+        }
+    }
+
+    content
+}
+
+fn format_metadata(label: &str, values: &[String]) -> String {
+    if values.is_empty() {
+        format!("{label}: none")
+    } else {
+        format!("{label}: {}", values.join(", "))
+    }
 }
 
 fn indented_menu_button<'a>(label: impl Into<String>, message: Message) -> Element<'a, Message> {

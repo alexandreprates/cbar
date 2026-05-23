@@ -1,11 +1,11 @@
 [Desktop Entry]
 Name=cbar
-Comment=COSMIC applet inspired by xbar
+Comment=Scriptable COSMIC panel applet
 Type=Application
 Exec=__CBAR_EXEC__
 Terminal=false
-Categories=COSMIC;Utility;
-Keywords=COSMIC;Applet;xbar;plugins;
+Categories=Utility;
+Keywords=COSMIC;Applet;plugins;scripts;panel;
 Icon=io.github.alexprates.CBar-symbolic
 StartupNotify=true
 NoDisplay=true

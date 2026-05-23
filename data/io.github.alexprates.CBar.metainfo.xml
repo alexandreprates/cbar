@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.alexprates.CBar</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>cbar</name>
+  <summary>Scriptable COSMIC panel applet</summary>
+  <description>
+    <p>
+      cbar runs local plugins on configurable intervals and renders their output
+      as live COSMIC panel text and interactive popup actions.
+    </p>
+    <p>
+      It is designed for lightweight desktop workflows such as system status,
+      developer shortcuts, network checks, timers, and other scriptable tasks.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.alexprates.CBar.desktop</launchable>
+  <provides>
+    <binary>cbar</binary>
+    <id>com.system76.CosmicApplet</id>
+  </provides>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>COSMIC</keyword>
+    <keyword>applet</keyword>
+    <keyword>plugins</keyword>
+    <keyword>scripts</keyword>
+    <keyword>panel</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/alexandreprates/cbar</url>
+  <url type="bugtracker">https://github.com/alexandreprates/cbar/issues</url>
+  <developer id="io.github.alexprates">
+    <name>Alexandre Prates</name>
+  </developer>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.2.1" date="2026-05-23">
+      <description>
+        <p>Added plugin catalog browsing and installation from the applet settings.</p>
+      </description>
+    </release>
+  </releases>
+</component>
