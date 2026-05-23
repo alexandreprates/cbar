@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="data/icons/scalable/apps/io.github.alexprates.CBar.svg" width="96" alt="cbar icon">
+</p>
+
 # cbar
 
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
