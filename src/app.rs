@@ -8,7 +8,7 @@ use cosmic::applet::menu_button;
 use cosmic::iced::platform_specific::shell::commands::popup::{destroy_popup, get_popup};
 use cosmic::iced::time;
 use cosmic::iced::widget::{Image, column, container, row, scrollable, svg};
-use cosmic::iced::{Alignment, ContentFit, Length, Subscription, window};
+use cosmic::iced::{Alignment, ContentFit, Length, Limits, Subscription, window};
 use cosmic::widget::{
     Id, autosize, button, divider,
     icon::{self, Data as IconData, Handle as IconHandle},
@@ -235,6 +235,7 @@ impl cosmic::Application for CBarApplet {
             }
             Message::OpenPluginCatalog => {
                 self.popup_view = PopupView::Catalog;
+                self.popup_plugin_index = None;
 
                 if self.catalog_plugins.is_empty() && !self.catalog_loading {
                     self.catalog_loading = true;
@@ -429,20 +430,28 @@ impl cosmic::Application for CBarApplet {
             PopupView::Menu => {
                 if let Some(plugin_index) = self.popup_plugin_index {
                     if let Some(plugin) = self.plugins.get(plugin_index) {
-                        content = content.push(text::body(plugin.title().to_owned()).size(14));
+                        let mut has_intro = false;
 
                         if plugin.cycle_items().len() > 1 {
-                            content = content.push(text::body(
+                            content = content.push(popup_label(
                                 fl!("cycle-items", items = plugin.cycle_items().join(" | "))
                                     .to_string(),
+                                14,
                             ));
+                            has_intro = true;
                         }
 
                         if let Some(error) = &plugin.last_error {
-                            content = content.push(text::body(fl!("plugin-error", error = error)));
+                            content = content.push(popup_label(
+                                fl!("plugin-error", error = error).to_string(),
+                                14,
+                            ));
+                            has_intro = true;
                         }
 
-                        content = content.push(divider::horizontal::default());
+                        if has_intro {
+                            content = content.push(divider::horizontal::default());
+                        }
 
                         for (entry_index, entry) in plugin.menu_entries().iter().enumerate() {
                             if entry.separator {
@@ -463,7 +472,8 @@ impl cosmic::Application for CBarApplet {
                             }
                         }
                     } else {
-                        content = content.push(text::body(fl!("no-selected-plugins")));
+                        content =
+                            content.push(popup_label(fl!("no-selected-plugins").to_string(), 14));
                     }
                 } else {
                     let mut has_visible_plugins = false;
@@ -473,17 +483,27 @@ impl cosmic::Application for CBarApplet {
                         }
 
                         has_visible_plugins = true;
-                        content = content.push(text::body(plugin.title().to_owned()).size(14));
+                        let mut has_intro = false;
 
                         if plugin.cycle_items().len() > 1 {
-                            content = content.push(text::body(
+                            content = content.push(popup_label(
                                 fl!("cycle-items", items = plugin.cycle_items().join(" | "))
                                     .to_string(),
+                                14,
                             ));
+                            has_intro = true;
                         }
 
                         if let Some(error) = &plugin.last_error {
-                            content = content.push(text::body(fl!("plugin-error", error = error)));
+                            content = content.push(popup_label(
+                                fl!("plugin-error", error = error).to_string(),
+                                14,
+                            ));
+                            has_intro = true;
+                        }
+
+                        if has_intro {
+                            content = content.push(divider::horizontal::default());
                         }
 
                         for (entry_index, entry) in plugin.menu_entries().iter().enumerate() {
@@ -509,15 +529,17 @@ impl cosmic::Application for CBarApplet {
                     }
 
                     if !self.plugins.is_empty() && !has_visible_plugins {
-                        content = content.push(text::body(fl!("no-selected-plugins")));
+                        content =
+                            content.push(popup_label(fl!("no-selected-plugins").to_string(), 14));
                     }
                 }
 
-                content = content.push(divider::horizontal::default()).push(
-                    menu_button(text::body(fl!("bar-settings")))
-                        .padding([2, 0])
-                        .on_press(Message::OpenBarSettings),
-                );
+                content = content
+                    .push(divider::horizontal::default())
+                    .push(indented_menu_button(
+                        fl!("bar-settings"),
+                        Message::OpenBarSettings,
+                    ));
             }
             PopupView::Settings => {
                 content = build_bar_settings_view(content, &self.plugins, &self.config);
@@ -531,12 +553,31 @@ impl cosmic::Application for CBarApplet {
                     self.catalog_installing.as_deref(),
                     self.catalog_status.as_deref(),
                 );
+                let limits = Limits::NONE
+                    .min_width(360.0)
+                    .max_width(560.0)
+                    .min_height(200.0)
+                    .max_height(640.0);
+
+                return self
+                    .core
+                    .applet
+                    .popup_container(container(scrollable(content)).width(Length::Fixed(520.0)))
+                    .limits(limits)
+                    .into();
             }
         }
+
+        let limits = Limits::NONE
+            .min_width(360.0)
+            .max_width(420.0)
+            .min_height(1.0)
+            .max_height(640.0);
 
         self.core
             .applet
             .popup_container(container(scrollable(content)).width(Length::Fixed(420.0)))
+            .limits(limits)
             .into()
     }
 
@@ -554,19 +595,33 @@ impl cosmic::Application for CBarApplet {
 
 impl CBarApplet {
     fn open_popup(&mut self, plugin_index: Option<usize>) -> Task<Message> {
+        self.open_popup_with_view(plugin_index, PopupView::Menu)
+    }
+
+    fn open_popup_with_view(
+        &mut self,
+        plugin_index: Option<usize>,
+        popup_view: PopupView,
+    ) -> Task<Message> {
         let previous_popup = self.popup.take();
         let new_id = window::Id::unique();
         self.popup = Some(new_id);
         self.popup_plugin_index = plugin_index;
-        self.popup_view = PopupView::Menu;
+        self.popup_view = popup_view;
 
         let popup_settings = self.core.applet.get_popup_settings(
             self.core.main_window_id().unwrap(),
             new_id,
-            Some((420, 520)),
+            None,
             None,
             None,
         );
+        let mut popup_settings = popup_settings;
+        popup_settings.positioner.size_limits = Limits::NONE
+            .min_height(1.0)
+            .min_width(360.0)
+            .max_width(760.0)
+            .max_height(1080.0);
 
         let mut tasks = Vec::new();
         if let Some(popup) = previous_popup {
@@ -835,6 +890,13 @@ fn status_panel_content(status: &str) -> Element<'_, Message> {
         .into()
 }
 
+fn popup_label(label: impl Into<String>, size: u16) -> Element<'static, Message> {
+    widget::container(text::body(label.into()).size(size))
+        .padding([0, 0, 0, 16])
+        .width(Length::Fill)
+        .into()
+}
+
 fn build_bar_settings_view<'a>(
     mut content: cosmic::widget::Column<'a, Message, cosmic::Theme>,
     plugins: &'a [PluginState],
@@ -846,9 +908,9 @@ fn build_bar_settings_view<'a>(
         .count();
 
     content = content
-        .push(menu_button(text::body(fl!("back"))).on_press(Message::CloseBarSettings))
+        .push(indented_menu_button(fl!("back"), Message::CloseBarSettings))
         .push(divider::horizontal::default())
-        .push(text::body(fl!("bar-settings")).size(14))
+        .push(popup_label(fl!("bar-settings").to_string(), 14))
         .push(
             widget::container(
                 text::body(
@@ -908,12 +970,13 @@ fn build_catalog_view<'a>(
     status: Option<&'a str>,
 ) -> cosmic::widget::Column<'a, Message, cosmic::Theme> {
     content = content
-        .push(menu_button(text::body(fl!("back"))).on_press(Message::OpenBarSettings))
+        .push(indented_menu_button(fl!("back"), Message::OpenBarSettings))
         .push(divider::horizontal::default())
-        .push(text::body(fl!("plugin-catalog")).size(14))
+        .push(popup_label(fl!("plugin-catalog").to_string(), 14))
         .push(
             widget::container(text::body(fl!("catalog-security-note")).size(13))
-                .padding([0, 0, 0, 16]),
+                .padding([0, 16])
+                .width(Length::Fill),
         )
         .push(indented_menu_button(
             if loading {
@@ -925,13 +988,19 @@ fn build_catalog_view<'a>(
         ));
 
     if let Some(status) = status {
-        content =
-            content.push(widget::container(text::body(status.to_owned())).padding([0, 0, 0, 16]));
+        content = content.push(
+            widget::container(text::body(status.to_owned()).size(13))
+                .padding([0, 16])
+                .width(Length::Fill),
+        );
     }
 
     if catalog_plugins.is_empty() && !loading {
-        return content
-            .push(widget::container(text::body(fl!("catalog-empty"))).padding([0, 0, 0, 16]));
+        return content.push(
+            widget::container(text::body(fl!("catalog-empty")))
+                .padding([0, 16])
+                .width(Length::Fill),
+        );
     }
 
     for plugin in catalog_plugins {
@@ -955,13 +1024,15 @@ fn build_catalog_view<'a>(
                 ]
                 .spacing(1),
             )
-            .padding([0, 0, 0, 16]),
+            .padding([0, 16])
+            .width(Length::Fill),
         );
 
         if installed {
             content = content.push(
                 widget::container(text::body(fl!("catalog-installed-marker")))
-                    .padding([0, 0, 0, 16]),
+                    .padding([0, 16])
+                    .width(Length::Fill),
             );
         } else if is_installing {
             content = content.push(
@@ -969,7 +1040,8 @@ fn build_catalog_view<'a>(
                     "catalog-installing",
                     name = plugin.name.clone()
                 )))
-                .padding([0, 0, 0, 16]),
+                .padding([0, 16])
+                .width(Length::Fill),
             );
         } else {
             content = content.push(indented_menu_button(

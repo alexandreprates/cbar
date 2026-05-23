@@ -22,14 +22,6 @@ impl PluginState {
         &self.last_output.title
     }
 
-    pub fn title(&self) -> &str {
-        if self.last_output.title.is_empty() {
-            &self.name
-        } else {
-            &self.last_output.title
-        }
-    }
-
     pub fn menu_entries(&self) -> &[MenuEntry] {
         &self.last_output.menu_entries
     }
