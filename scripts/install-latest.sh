@@ -18,6 +18,8 @@ showcase_plugins=(
   "showcase-overview.10s.sh"
   "showcase-actions.30s.sh"
   "showcase-config.1m.sh"
+  "showcase-memory-bar.5s.sh"
+  "showcase-cpu-chart.5s.sh"
   "showcase-status.5s.sh"
 )
 

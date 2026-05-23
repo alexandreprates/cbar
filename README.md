@@ -121,6 +121,8 @@ Additional examples:
 - [plugins/showcase-overview.10s.sh](plugins/showcase-overview.10s.sh) demonstrates panel titles, cycle items, popup rows, nesting, alternates, hidden rows, disabled rows, and refresh.
 - [plugins/showcase-actions.30s.sh](plugins/showcase-actions.30s.sh) demonstrates links, shell actions, terminal actions, and refresh-after-action.
 - [plugins/showcase-config.1m.sh](plugins/showcase-config.1m.sh) demonstrates environment-variable driven plugin behavior.
+- [plugins/showcase-memory-bar.5s.sh](plugins/showcase-memory-bar.5s.sh) demonstrates inline SVG images with a RAM usage bar.
+- [plugins/showcase-cpu-chart.5s.sh](plugins/showcase-cpu-chart.5s.sh) demonstrates inline SVG images with a tiny CPU usage history chart.
 - [plugins/showcase-status.5s.sh](plugins/showcase-status.5s.sh) demonstrates dynamic local status, thresholds, separators, and diagnostics.
 
 ## Build Requirements
