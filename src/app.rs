@@ -23,6 +23,7 @@ use tokio::process::Command;
 
 const APP_ID: &str = "io.github.alexprates.CBar";
 const REPOSITORY_URL: &str = "https://github.com/alexandreprates/cbar";
+const PANEL_IMAGE_HEIGHT: u16 = 22;
 static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
 pub fn run() -> cosmic::iced::Result {
@@ -870,7 +871,7 @@ fn plugin_panel_content(plugin: &PluginState) -> Element<'_, Message> {
 
     if let Some(image) = plugin
         .title_image()
-        .and_then(|image| panel_image_element(image, 18))
+        .and_then(|image| panel_image_element(image, PANEL_IMAGE_HEIGHT))
     {
         content = content.push(image);
     }
