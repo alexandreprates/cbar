@@ -43,7 +43,7 @@ The implementation is intentionally focused on practical COSMIC integration.
 - per-plugin refresh scheduling
 - per-plugin parallel refresh with per-plugin in-flight protection
 - local plugin execution with support for shell actions, URLs, and terminal actions
-- plugin catalog browsing and installation from the applet settings
+- plugin catalog browsing, installation, and removal from the applet settings
 - local install script for user-level testing
 
 ## Plugin Output Format
@@ -88,7 +88,7 @@ Showcase plugins are included under [plugins/](plugins/) to demonstrate panel ou
 
 The applet settings include a plugin catalog view backed by the public [cbar-plugins](https://github.com/alexandreprates/cbar-plugins) repository.
 
-Catalog installation downloads the selected plugin script into the active plugin directory, validates the published SHA-256 checksum, marks the file executable, and reloads the plugin list. Catalog plugins are local scripts and run as the current user.
+Catalog installation downloads the selected plugin script into the active plugin directory, validates the published SHA-256 checksum, marks the file executable, and reloads the plugin list. Installed catalog plugins can also be removed from the same catalog view. Catalog plugins are local scripts and run as the current user.
 
 By default, `cbar` loads:
 
@@ -288,7 +288,9 @@ plugins/          showcase plugins for development
 
 Implemented:
 
-- plugin catalog browsing and installation from applet settings
+- plugin catalog browsing, installation, and removal from applet settings
+- plugin directory shortcuts for manual plugin management from applet settings
+- clearer settings menu grouping for installed plugins, directory actions, and general actions
 - support for links, shell actions, terminal actions, refresh-after-action, alternates, hidden rows, disabled rows, and inline images
 - showcase plugins covering menu structure, actions, configuration, dynamic status rows, RAM gauges, and CPU charts
 - local, release-archive, and latest-release install scripts with desktop entry and icon installation

@@ -1,4 +1,4 @@
-use crate::catalog::{CatalogPlugin, fetch_catalog, install_catalog_plugin};
+use crate::catalog::{CatalogPlugin, fetch_catalog, install_catalog_plugin, remove_catalog_plugin};
 use crate::config::{AppConfig, default_config_path, load_config, save_config};
 use crate::fl;
 use crate::parser::EmbeddedImage;
@@ -54,6 +54,7 @@ struct CBarApplet {
     catalog_plugins: Vec<CatalogPlugin>,
     catalog_loading: bool,
     catalog_installing: Option<String>,
+    catalog_removing: Option<String>,
     catalog_status: Option<String>,
 }
 
@@ -84,6 +85,10 @@ enum Message {
     CatalogLoaded(Result<Vec<CatalogPlugin>, String>),
     InstallCatalogPlugin(String),
     CatalogPluginInstalled(Result<String, String>),
+    RemoveCatalogPlugin(String),
+    CatalogPluginRemoved(Result<String, String>),
+    OpenPluginDirectory,
+    PluginDirectoryOpened(Result<(), String>),
     OpenAbout,
     AboutOpened(Result<(), String>),
     ConfigSaved(Result<(), String>),
@@ -125,6 +130,7 @@ impl cosmic::Application for CBarApplet {
                 catalog_plugins: Vec::new(),
                 catalog_loading: false,
                 catalog_installing: None,
+                catalog_removing: None,
                 catalog_status: None,
             },
             Task::perform(
@@ -252,8 +258,8 @@ impl cosmic::Application for CBarApplet {
                 }
             }
             Message::ReloadPluginCatalog => {
-                if self.catalog_installing.is_some() {
-                    self.catalog_status = Some(fl!("catalog-install-in-progress").to_string());
+                if self.catalog_action_in_progress() {
+                    self.catalog_status = Some(fl!("catalog-action-in-progress").to_string());
                     return Task::none();
                 }
 
@@ -276,8 +282,8 @@ impl cosmic::Application for CBarApplet {
                 }
             }
             Message::InstallCatalogPlugin(plugin_id) => {
-                if self.catalog_installing.is_some() {
-                    self.catalog_status = Some(fl!("catalog-install-in-progress").to_string());
+                if self.catalog_action_in_progress() {
+                    self.catalog_status = Some(fl!("catalog-action-in-progress").to_string());
                     return Task::none();
                 }
 
@@ -319,6 +325,69 @@ impl cosmic::Application for CBarApplet {
                     Err(err) => {
                         self.catalog_status = Some(err);
                     }
+                }
+            }
+            Message::RemoveCatalogPlugin(plugin_id) => {
+                if self.catalog_action_in_progress() {
+                    self.catalog_status = Some(fl!("catalog-action-in-progress").to_string());
+                    return Task::none();
+                }
+
+                let Some(plugin) = self
+                    .catalog_plugins
+                    .iter()
+                    .find(|plugin| plugin.id == plugin_id)
+                    .cloned()
+                else {
+                    self.catalog_status = Some(fl!("catalog-plugin-not-found").to_string());
+                    return Task::none();
+                };
+
+                self.catalog_removing = Some(plugin.id.clone());
+                self.catalog_status =
+                    Some(fl!("catalog-removing", name = plugin.name.clone()).to_string());
+                return Task::perform(
+                    remove_catalog_plugin(self.plugin_dir.clone(), plugin),
+                    app_message(Message::CatalogPluginRemoved),
+                );
+            }
+            Message::CatalogPluginRemoved(result) => {
+                self.catalog_removing = None;
+
+                match result {
+                    Ok(plugin_name) => {
+                        let mut config_changed = false;
+                        if let Some(enabled_plugins) = self.config.enabled_plugins.as_mut() {
+                            config_changed = enabled_plugins.remove(&plugin_name);
+                        }
+
+                        self.catalog_status =
+                            Some(fl!("catalog-removed", name = plugin_name).to_string());
+                        let reload_task = Task::perform(
+                            load_plugins(self.plugin_dir.clone()),
+                            app_message(Message::PluginsLoaded),
+                        );
+                        let save_task = if config_changed {
+                            self.persist_config()
+                        } else {
+                            Task::none()
+                        };
+                        return Task::batch(vec![reload_task, save_task]);
+                    }
+                    Err(err) => {
+                        self.catalog_status = Some(err);
+                    }
+                }
+            }
+            Message::OpenPluginDirectory => {
+                return Task::perform(
+                    open_path(self.plugin_dir.clone()),
+                    app_message(Message::PluginDirectoryOpened),
+                );
+            }
+            Message::PluginDirectoryOpened(result) => {
+                if let Err(err) = result {
+                    self.status = err;
                 }
             }
             Message::OpenAbout => {
@@ -488,6 +557,7 @@ impl cosmic::Application for CBarApplet {
                     &self.plugin_dir,
                     self.catalog_loading,
                     self.catalog_installing.as_deref(),
+                    self.catalog_removing.as_deref(),
                     self.catalog_status.as_deref(),
                 );
                 let limits = Limits::NONE
@@ -648,6 +718,10 @@ impl CBarApplet {
         self.refresh_in_flight = vec![false; count];
         self.pending_refresh = vec![false; count];
         self.pending_force_refresh = vec![false; count];
+    }
+
+    fn catalog_action_in_progress(&self) -> bool {
+        self.catalog_loading || self.catalog_installing.is_some() || self.catalog_removing.is_some()
     }
 
     fn update_status(&mut self) {
@@ -825,10 +899,14 @@ fn default_plugin_dir() -> PathBuf {
 }
 
 async fn open_repository() -> Result<(), String> {
+    open_path(PathBuf::from(REPOSITORY_URL)).await
+}
+
+async fn open_path(path: PathBuf) -> Result<(), String> {
     Command::new("xdg-open")
-        .arg(REPOSITORY_URL)
+        .arg(&path)
         .spawn()
-        .map_err(|err| format!("failed to open repository: {err}"))?;
+        .map_err(|err| format!("failed to open {}: {err}", path.display()))?;
     Ok(())
 }
 
@@ -906,11 +984,7 @@ fn build_bar_settings_view<'a>(
                 .size(13),
             )
             .padding([0, 0, 0, 16]),
-        )
-        .push(indented_menu_button(
-            fl!("reload-plugin-directory"),
-            Message::ReloadPlugins,
-        ));
+        );
 
     if plugins.is_empty() {
         content = content.push(
@@ -929,6 +1003,17 @@ fn build_bar_settings_view<'a>(
             ));
         }
     }
+
+    content = content
+        .push(divider::horizontal::default())
+        .push(indented_menu_button(
+            fl!("open-plugin-directory"),
+            Message::OpenPluginDirectory,
+        ))
+        .push(indented_menu_button(
+            fl!("reload-plugin-directory"),
+            Message::ReloadPlugins,
+        ));
 
     content
         .push(divider::horizontal::default())
@@ -949,13 +1034,14 @@ fn build_catalog_view<'a>(
     plugin_dir: &'a Path,
     loading: bool,
     installing: Option<&'a str>,
+    removing: Option<&'a str>,
     status: Option<&'a str>,
 ) -> cosmic::widget::Column<'a, Message, cosmic::Theme> {
-    let catalog_busy = loading || installing.is_some();
+    let catalog_busy = loading || installing.is_some() || removing.is_some();
     let reload_label = if loading {
         fl!("catalog-loading")
     } else if catalog_busy {
-        fl!("catalog-install-in-progress")
+        fl!("catalog-action-in-progress")
     } else {
         fl!("reload-plugin-catalog")
     };
@@ -1000,6 +1086,7 @@ fn build_catalog_view<'a>(
             .installed_path(plugin_dir)
             .is_ok_and(|path| path.exists());
         let is_installing = installing.is_some_and(|plugin_id| plugin_id == plugin.id);
+        let is_removing = removing.is_some_and(|plugin_id| plugin_id == plugin.id);
 
         content = content.push(divider::horizontal::default()).push(
             widget::container(
@@ -1020,13 +1107,7 @@ fn build_catalog_view<'a>(
             .width(Length::Fill),
         );
 
-        if installed {
-            content = content.push(
-                widget::container(text::body(fl!("catalog-installed-marker")))
-                    .padding([0, 16])
-                    .width(Length::Fill),
-            );
-        } else if is_installing {
+        if is_installing {
             content = content.push(
                 widget::container(text::body(fl!(
                     "catalog-installing",
@@ -1035,8 +1116,24 @@ fn build_catalog_view<'a>(
                 .padding([0, 16])
                 .width(Length::Fill),
             );
+        } else if is_removing {
+            content = content.push(
+                widget::container(text::body(fl!(
+                    "catalog-removing",
+                    name = plugin.name.clone()
+                )))
+                .padding([0, 16])
+                .width(Length::Fill),
+            );
+        } else if installed && catalog_busy {
+            content = content.push(indented_menu_label(fl!("catalog-remove-disabled")));
         } else if catalog_busy {
             content = content.push(indented_menu_label(fl!("catalog-install-disabled")));
+        } else if installed {
+            content = content.push(indented_menu_button(
+                fl!("catalog-remove", name = plugin.name.clone()),
+                Message::RemoveCatalogPlugin(plugin.id.clone()),
+            ));
         } else {
             content = content.push(indented_menu_button(
                 fl!("catalog-install", name = plugin.name.clone()),

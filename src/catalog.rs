@@ -143,6 +143,35 @@ pub async fn install_catalog_plugin(
     Ok(plugin.install_name)
 }
 
+pub async fn remove_catalog_plugin(
+    plugin_dir: PathBuf,
+    plugin: CatalogPlugin,
+) -> Result<String, String> {
+    let destination = plugin.installed_path(&plugin_dir)?;
+    let metadata = fs::metadata(&destination).map_err(|err| {
+        if err.kind() == ErrorKind::NotFound {
+            format!("plugin is not installed: {}", destination.display())
+        } else {
+            format!(
+                "failed to read plugin metadata {}: {err}",
+                destination.display()
+            )
+        }
+    })?;
+
+    if !metadata.is_file() {
+        return Err(format!(
+            "installed plugin is not a file: {}",
+            destination.display()
+        ));
+    }
+
+    fs::remove_file(&destination)
+        .map_err(|err| format!("failed to remove plugin {}: {err}", destination.display()))?;
+
+    Ok(plugin.install_name)
+}
+
 async fn read_plugin_response(
     mut response: reqwest::Response,
     plugin: &CatalogPlugin,
@@ -215,8 +244,13 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{CatalogPlugin, MAX_PLUGIN_DOWNLOAD_BYTES, sha256_hex, validate_declared_size};
-    use std::path::Path;
+    use super::{
+        CatalogPlugin, MAX_PLUGIN_DOWNLOAD_BYTES, remove_catalog_plugin, sha256_hex,
+        validate_declared_size,
+    };
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn rejects_install_names_with_path_separators() {
@@ -271,5 +305,53 @@ mod tests {
 
         plugin.size_bytes = MAX_PLUGIN_DOWNLOAD_BYTES + 1;
         assert!(validate_declared_size(&plugin).is_err());
+    }
+
+    #[test]
+    fn removes_installed_catalog_plugin() {
+        let plugin_dir = unique_test_dir("remove");
+        fs::create_dir_all(&plugin_dir).expect("plugin dir should be created");
+        let plugin_path = plugin_dir.join("remove-me.sh");
+        fs::write(&plugin_path, b"#!/usr/bin/env bash\n").expect("plugin should be written");
+
+        let plugin = CatalogPlugin {
+            id: "test.remove".to_owned(),
+            name: "Remove".to_owned(),
+            category: "test".to_owned(),
+            description: "Remove plugin".to_owned(),
+            path: "plugins/remove-me.sh".to_owned(),
+            download_url: "https://example.com/remove-me.sh".to_owned(),
+            install_name: "remove-me.sh".to_owned(),
+            interval: "1m".to_owned(),
+            language: "bash".to_owned(),
+            dependencies: Vec::new(),
+            env: Vec::new(),
+            sha256: String::new(),
+            size_bytes: 1,
+            license: "GPL-3.0-only".to_owned(),
+        };
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("runtime should be created");
+        let removed_name = runtime
+            .block_on(remove_catalog_plugin(plugin_dir.clone(), plugin))
+            .expect("plugin should be removed");
+
+        assert_eq!(removed_name, "remove-me.sh");
+        assert!(!plugin_path.exists());
+        cleanup_path(&plugin_dir);
+    }
+
+    fn unique_test_dir(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("cbar-catalog-tests-{label}-{nonce}"))
+    }
+
+    fn cleanup_path(path: &Path) {
+        let _ = fs::remove_dir_all(path);
     }
 }
