@@ -18,6 +18,7 @@ catalog-loading = carregando catálogo de plugins
 catalog-loaded = {$count} plugin(s) no catálogo
 catalog-empty = Nenhum plugin do catálogo carregado.
 catalog-security-note = Plugins do catálogo são scripts locais e rodam como seu usuário. Inspecione plugins antes de instalar quando estiver em dúvida.
+catalog-published-by = Publicado por {$publisher}
 catalog-install = Instalar {$name}
 catalog-installing = instalando {$name}
 catalog-action-in-progress = ação do catálogo em andamento

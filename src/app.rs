@@ -1088,23 +1088,30 @@ fn build_catalog_view<'a>(
         let is_installing = installing.is_some_and(|plugin_id| plugin_id == plugin.id);
         let is_removing = removing.is_some_and(|plugin_id| plugin_id == plugin.id);
 
+        let mut plugin_details = column![
+            text::body(format!("{} · {}", plugin.name, plugin.category)).size(13),
+            text::body(plugin.description.clone()),
+            text::body(format!(
+                "{} · {} · {}",
+                plugin.interval, plugin.language, plugin.license
+            ))
+            .size(12),
+        ];
+
+        if let Some(publisher) = &plugin.publisher {
+            plugin_details = plugin_details.push(
+                text::body(fl!("catalog-published-by", publisher = publisher.clone())).size(12),
+            );
+        }
+
+        plugin_details = plugin_details
+            .push(text::body(format_metadata("deps", &plugin.dependencies)).size(12))
+            .push(text::body(format_metadata("env", &plugin.env)).size(12));
+
         content = content.push(divider::horizontal::default()).push(
-            widget::container(
-                column![
-                    text::body(format!("{} · {}", plugin.name, plugin.category)).size(13),
-                    text::body(plugin.description.clone()),
-                    text::body(format!(
-                        "{} · {} · {}",
-                        plugin.interval, plugin.language, plugin.license
-                    ))
-                    .size(12),
-                    text::body(format_metadata("deps", &plugin.dependencies)).size(12),
-                    text::body(format_metadata("env", &plugin.env)).size(12),
-                ]
-                .spacing(1),
-            )
-            .padding([0, 16])
-            .width(Length::Fill),
+            widget::container(plugin_details.spacing(1))
+                .padding([0, 16])
+                .width(Length::Fill),
         );
 
         if is_installing {

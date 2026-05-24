@@ -33,6 +33,8 @@ pub struct CatalogPlugin {
     pub sha256: String,
     pub size_bytes: u64,
     pub license: String,
+    pub publisher: Option<String>,
+    pub publisher_url: Option<String>,
 }
 
 impl CatalogPlugin {
@@ -269,6 +271,8 @@ mod tests {
             sha256: String::new(),
             size_bytes: 0,
             license: "GPL-3.0-only".to_owned(),
+            publisher: None,
+            publisher_url: None,
         };
 
         assert!(plugin.installed_path(Path::new("/tmp/cbar")).is_err());
@@ -299,6 +303,8 @@ mod tests {
             sha256: String::new(),
             size_bytes: 0,
             license: "GPL-3.0-only".to_owned(),
+            publisher: None,
+            publisher_url: None,
         };
 
         assert!(validate_declared_size(&plugin).is_err());
@@ -329,6 +335,8 @@ mod tests {
             sha256: String::new(),
             size_bytes: 1,
             license: "GPL-3.0-only".to_owned(),
+            publisher: None,
+            publisher_url: None,
         };
 
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -341,6 +349,32 @@ mod tests {
         assert_eq!(removed_name, "remove-me.sh");
         assert!(!plugin_path.exists());
         cleanup_path(&plugin_dir);
+    }
+
+    #[test]
+    fn deserializes_catalog_plugin_without_publisher_metadata() {
+        let plugin: CatalogPlugin = serde_json::from_str(
+            r#"{
+                "id": "test.legacy",
+                "name": "Legacy",
+                "category": "test",
+                "description": "Legacy plugin",
+                "path": "plugins/legacy.sh",
+                "download_url": "https://example.com/legacy.sh",
+                "install_name": "legacy.sh",
+                "interval": "1m",
+                "language": "bash",
+                "dependencies": [],
+                "env": [],
+                "sha256": "",
+                "size_bytes": 1,
+                "license": "GPL-3.0-only"
+            }"#,
+        )
+        .expect("legacy catalog plugin should deserialize");
+
+        assert_eq!(plugin.publisher, None);
+        assert_eq!(plugin.publisher_url, None);
     }
 
     fn unique_test_dir(label: &str) -> PathBuf {
