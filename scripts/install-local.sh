@@ -16,7 +16,14 @@ metainfo_file="${repo_root}/data/io.github.alexprates.CBar.metainfo.xml"
 
 mkdir -p "${bin_dir}" "${app_dir}" "${metainfo_dir}" "${icon_dir}" "${plugin_dir}"
 
-source "${HOME}/.cargo/env"
+if [[ -r "${HOME}/.cargo/env" ]]; then
+  source "${HOME}/.cargo/env"
+fi
+
+if ! command -v cargo >/dev/null 2>&1; then
+  printf 'Missing required command: cargo\n' >&2
+  exit 1
+fi
 
 cargo install --path "${repo_root}" --root "${prefix}" --force
 

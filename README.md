@@ -286,10 +286,20 @@ plugins/          showcase plugins for development
 
 ## Roadmap
 
-- add dynamic plugin discovery
-- support more plugin item parameters where they fit COSMIC
-- improve popup hierarchy and action presentation
-- package the applet for easier installation
+Implemented:
+
+- plugin catalog browsing and installation from applet settings
+- support for links, shell actions, terminal actions, refresh-after-action, alternates, hidden rows, disabled rows, and inline images
+- showcase plugins covering menu structure, actions, configuration, dynamic status rows, RAM gauges, and CPU charts
+- local, release-archive, and latest-release install scripts with desktop entry and icon installation
+- prebuilt GitHub release archives for direct installation
+
+Next:
+
+- add automatic plugin directory watching
+- support more visual plugin item parameters where they fit COSMIC
+- improve popup hierarchy beyond visual indentation
+- add richer persistent configuration for individual plugins
 
 ## Related Projects
 
