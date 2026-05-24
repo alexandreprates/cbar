@@ -37,6 +37,13 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.4.0" date="2026-05-24">
+      <description>
+        <p>Added publisher attribution to plugin catalog entries.</p>
+        <p>Improved plugin management with catalog removal, clearer settings actions, and local plugin directory access.</p>
+        <p>Added German, Spanish, French, Italian, Japanese, and Simplified Chinese translations.</p>
+      </description>
+    </release>
     <release version="1.2.1" date="2026-05-23">
       <description>
         <p>Added plugin catalog browsing and installation from the applet settings.</p>
