@@ -20,6 +20,17 @@ It is designed for small, scriptable workflows that belong in the desktop panel:
 
 `cbar` is built around COSMIC and `libcosmic` applet behavior.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/cbar-plugin-actions.png" width="720" alt="cbar plugin popup with timer actions">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/cbar-settings.png" width="360" alt="cbar settings popup with local plugins">
+  <img src="docs/screenshots/cbar-plugin-catalog.png" width="360" alt="cbar plugin catalog popup">
+</p>
+
 ## Status
 
 `cbar` is currently ready for early adopters and community feedback.
