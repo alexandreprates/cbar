@@ -33,4 +33,4 @@ status-no-plugins = inga insticksprogram i {$path}
 status-no-selected-plugins = inga insticksprogram valda
 status-plugin-count = {$count} insticksprogram
 status-plugin-count-filtered = {$enabled} av {$total} insticksprogram
-alternate-prefix = [alt] 
+alternate-prefix = [alt]{" "}
