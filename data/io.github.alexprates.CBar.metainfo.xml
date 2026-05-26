@@ -37,6 +37,11 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.4.1" date="2026-05-26">
+      <description>
+        <p>Added Swedish translation.</p>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-05-24">
       <description>
         <p>Added publisher attribution to plugin catalog entries.</p>
