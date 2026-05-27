@@ -460,12 +460,11 @@ impl cosmic::Application for CBarApplet {
             .collect::<Vec<_>>();
 
         let content = if enabled_plugins.is_empty() {
-            let button = button::custom(
-                container(status_panel_content(&self.status)).center_y(button_height),
-            )
-            .on_press_down(Message::TogglePopup(None))
-            .padding([0, horizontal_padding])
-            .class(cosmic::theme::Button::AppletIcon);
+            let button =
+                button::custom(container(cbar_panel_icon_content()).center_y(button_height))
+                    .on_press_down(Message::TogglePopup(None))
+                    .padding([0, horizontal_padding])
+                    .class(cosmic::theme::Button::AppletIcon);
 
             Element::from(button)
         } else {
@@ -522,6 +521,8 @@ impl cosmic::Application for CBarApplet {
                         content =
                             content.push(popup_label(fl!("no-selected-plugins").to_string(), 14));
                     }
+                } else if self.plugins.is_empty() {
+                    content = content.push(popup_label(self.status.clone(), 14));
                 } else {
                     let mut has_visible_plugins = false;
                     for (plugin_index, plugin) in self.plugins.iter().enumerate() {
@@ -928,26 +929,46 @@ fn plugin_panel_content(plugin: &PluginState) -> Element<'_, Message> {
         .align_y(Alignment::Center)
         .width(Length::Shrink);
 
-    if let Some(image) = plugin
+    if plugin.last_error.is_some() {
+        content = content.push(warning_panel_icon());
+    } else if let Some(image) = plugin
         .title_image()
         .and_then(|image| panel_image_element(image, PANEL_IMAGE_HEIGHT))
     {
         content = content.push(image);
     }
 
-    if !label.is_empty() {
+    if plugin.last_error.is_none() && !label.is_empty() {
         content = content.push(text::body(label));
     }
 
     content.into()
 }
 
-fn status_panel_content(status: &str) -> Element<'_, Message> {
-    row![text::body(status)]
-        .spacing(6)
-        .align_y(Alignment::Center)
-        .width(Length::Shrink)
-        .into()
+fn cbar_panel_icon_content() -> Element<'static, Message> {
+    row![
+        icon::icon(
+            icon::from_svg_bytes(
+                &include_bytes!(
+                    "../data/icons/scalable/apps/io.github.alexprates.CBar-symbolic.svg"
+                )[..]
+            )
+            .symbolic(true)
+        )
+        .size(PANEL_IMAGE_HEIGHT)
+    ]
+    .spacing(6)
+    .align_y(Alignment::Center)
+    .width(Length::Shrink)
+    .into()
+}
+
+fn warning_panel_icon() -> Element<'static, Message> {
+    icon::icon(icon::from_svg_bytes(
+        &include_bytes!("../data/icons/scalable/apps/io.github.alexprates.CBar-warning.svg")[..],
+    ))
+    .size(PANEL_IMAGE_HEIGHT)
+    .into()
 }
 
 fn popup_label(label: impl Into<String>, size: u16) -> Element<'static, Message> {
