@@ -28,6 +28,8 @@ pub struct CatalogPlugin {
     pub install_name: String,
     pub interval: String,
     pub language: String,
+    #[serde(default)]
+    pub languages: Vec<String>,
     pub dependencies: Vec<String>,
     pub env: Vec<String>,
     pub sha256: String,
@@ -266,6 +268,7 @@ mod tests {
             install_name: "../bad.sh".to_owned(),
             interval: "1m".to_owned(),
             language: "bash".to_owned(),
+            languages: Vec::new(),
             dependencies: Vec::new(),
             env: Vec::new(),
             sha256: String::new(),
@@ -298,6 +301,7 @@ mod tests {
             install_name: "large.sh".to_owned(),
             interval: "1m".to_owned(),
             language: "bash".to_owned(),
+            languages: Vec::new(),
             dependencies: Vec::new(),
             env: Vec::new(),
             sha256: String::new(),
@@ -330,6 +334,7 @@ mod tests {
             install_name: "remove-me.sh".to_owned(),
             interval: "1m".to_owned(),
             language: "bash".to_owned(),
+            languages: Vec::new(),
             dependencies: Vec::new(),
             env: Vec::new(),
             sha256: String::new(),
@@ -375,6 +380,7 @@ mod tests {
 
         assert_eq!(plugin.publisher, None);
         assert_eq!(plugin.publisher_url, None);
+        assert!(plugin.languages.is_empty());
     }
 
     fn unique_test_dir(label: &str) -> PathBuf {

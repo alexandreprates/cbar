@@ -970,36 +970,43 @@ fn build_bar_settings_view<'a>(
     content = content
         .push(indented_menu_button(fl!("back"), Message::CloseBarSettings))
         .push(divider::horizontal::default())
-        .push(popup_label(fl!("bar-settings").to_string(), 14))
+        .push(featured_menu_button(
+            fl!("explore-plugin-catalog"),
+            Message::OpenPluginCatalog,
+        ))
+        .push(divider::horizontal::default())
+        .push(
+            widget::container(text::body(fl!("bar-settings")).size(24))
+                .padding([4, 16, 0, 16])
+                .width(Length::Fill),
+        )
         .push(
             widget::container(
-                text::body(
-                    fl!(
-                        "visible-plugins",
+                row![
+                    text::body(fl!("installed-plugins"))
+                        .size(13)
+                        .width(Length::Fill),
+                    settings_summary_pill(fl!(
+                        "visible-plugins-summary",
                         enabled = enabled_count,
                         total = plugins.len()
-                    )
-                    .to_string(),
-                )
-                .size(13),
+                    ))
+                ]
+                .align_y(Alignment::Center)
+                .width(Length::Fill),
             )
-            .padding([0, 0, 0, 16]),
+            .padding([2, 16, 8, 16])
+            .width(Length::Fill),
         );
 
     if plugins.is_empty() {
-        content = content.push(
-            widget::container(text::body(fl!("no-executable-plugins"))).padding([0, 0, 0, 16]),
-        );
+        content = content
+            .push(widget::container(text::body(fl!("no-executable-plugins"))).padding([8, 16]));
     } else {
         for plugin in plugins {
-            let marker = if config.is_enabled(&plugin.name) {
-                "✓"
-            } else {
-                "○"
-            };
-            content = content.push(indented_menu_button(
-                format!("{marker} {}", plugin.name),
-                Message::TogglePluginSelection(plugin.name.clone()),
+            content = content.push(settings_plugin_card(
+                plugin,
+                config.is_enabled(&plugin.name),
             ));
         }
     }
@@ -1018,14 +1025,87 @@ fn build_bar_settings_view<'a>(
     content
         .push(divider::horizontal::default())
         .push(indented_menu_button(
-            fl!("explore-plugin-catalog"),
-            Message::OpenPluginCatalog,
-        ))
-        .push(indented_menu_button(
             fl!("refresh-now"),
             Message::RefreshAll,
         ))
         .push(indented_menu_button(fl!("about"), Message::OpenAbout))
+}
+
+fn settings_plugin_card<'a>(plugin: &'a PluginState, enabled: bool) -> Element<'a, Message> {
+    let mut plugin_badges = row![catalog_badge(settings_plugin_category(&plugin.name))]
+        .spacing(4)
+        .align_y(Alignment::Center);
+
+    if let Some(interval) = plugin_interval_label(&plugin.name) {
+        plugin_badges = plugin_badges.push(catalog_badge(interval));
+    }
+
+    let plugin_details = column![text::body(plugin.name.clone()).size(14), plugin_badges]
+        .spacing(6)
+        .width(Length::Fill);
+
+    let plugin_name = plugin.name.clone();
+    let toggle: Element<'a, Message> = widget::toggler(enabled)
+        .size(24)
+        .on_toggle(move |_| Message::TogglePluginSelection(plugin_name.clone()))
+        .into();
+
+    let state_label = if enabled {
+        fl!("plugin-toggle-visible")
+    } else {
+        fl!("plugin-toggle-hidden")
+    };
+
+    let state = column![text::body(state_label).size(12), toggle]
+        .spacing(6)
+        .align_x(Alignment::End)
+        .width(Length::Shrink);
+
+    let card = row![settings_monogram(&plugin.name), plugin_details, state]
+        .spacing(14)
+        .align_y(Alignment::Center)
+        .width(Length::Fill);
+
+    widget::container(
+        widget::container(card)
+            .class(catalog_card_container())
+            .padding(12)
+            .width(Length::Fill),
+    )
+    .padding([5, 14])
+    .width(Length::Fill)
+    .into()
+}
+
+fn settings_summary_pill<'a>(label: impl Into<String>) -> Element<'a, Message> {
+    widget::container(text::body(label.into()).size(12))
+        .padding([2, 8])
+        .class(catalog_badge_container())
+        .into()
+}
+
+fn settings_monogram<'a>(name: &str) -> Element<'a, Message> {
+    widget::container(text::body(plugin_monogram(name)).size(15))
+        .class(catalog_monogram_container())
+        .width(Length::Fixed(44.0))
+        .height(Length::Fixed(44.0))
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center)
+        .into()
+}
+
+fn settings_plugin_category(name: &str) -> String {
+    let lower_name = name.to_ascii_lowercase();
+    if lower_name.starts_with("showcase-") {
+        "showcase".to_owned()
+    } else if lower_name.contains("github")
+        || lower_name.contains("openai")
+        || lower_name.contains("docker")
+    {
+        "dev".to_owned()
+    } else {
+        "local".to_owned()
+    }
 }
 
 fn build_catalog_view<'a>(
@@ -1048,30 +1128,44 @@ fn build_catalog_view<'a>(
 
     content = content
         .push(indented_menu_button(fl!("back"), Message::OpenBarSettings))
-        .push(divider::horizontal::default())
-        .push(popup_label(fl!("plugin-catalog").to_string(), 14))
+        .push(
+            widget::container(text::body(fl!("plugin-catalog")).size(24))
+                .padding([2, 16, 0, 16])
+                .width(Length::Fill),
+        )
         .push(
             widget::container(text::body(fl!("catalog-security-note")).size(13))
-                .padding([0, 16])
+                .padding([4, 16, 12, 16])
                 .width(Length::Fill),
-        );
+        )
+        .push(divider::horizontal::default());
 
-    content = if catalog_busy {
-        content.push(indented_menu_label(reload_label))
+    let catalog_status = status
+        .map(str::to_owned)
+        .unwrap_or_else(|| fl!("catalog-loaded", count = catalog_plugins.len()).to_string());
+    let catalog_toolbar = if catalog_busy {
+        row![
+            text::body(catalog_status).size(13).width(Length::Fill),
+            text::body(reload_label).size(13)
+        ]
     } else {
-        content.push(indented_menu_button(
-            reload_label,
-            Message::ReloadPluginCatalog,
-        ))
-    };
-
-    if let Some(status) = status {
-        content = content.push(
-            widget::container(text::body(status.to_owned()).size(13))
-                .padding([0, 16])
-                .width(Length::Fill),
-        );
+        let reload_action: Element<'_, Message> = button::suggested(reload_label)
+            .on_press(Message::ReloadPluginCatalog)
+            .into();
+        row![
+            text::body(catalog_status).size(13).width(Length::Fill),
+            reload_action
+        ]
     }
+    .spacing(12)
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
+
+    content = content.push(
+        widget::container(catalog_toolbar)
+            .padding([12, 16])
+            .width(Length::Fill),
+    );
 
     if catalog_plugins.is_empty() && !loading {
         return content.push(
@@ -1088,76 +1182,237 @@ fn build_catalog_view<'a>(
         let is_installing = installing.is_some_and(|plugin_id| plugin_id == plugin.id);
         let is_removing = removing.is_some_and(|plugin_id| plugin_id == plugin.id);
 
-        let mut plugin_details = column![
-            text::body(format!("{} · {}", plugin.name, plugin.category)).size(13),
-            text::body(plugin.description.clone()),
-            text::body(format!(
-                "{} · {} · {}",
-                plugin.interval, plugin.language, plugin.license
-            ))
-            .size(12),
-        ];
-
-        if let Some(publisher) = &plugin.publisher {
-            plugin_details = plugin_details.push(
-                text::body(fl!("catalog-published-by", publisher = publisher.clone())).size(12),
-            );
-        }
-
-        plugin_details = plugin_details
-            .push(text::body(format_metadata("deps", &plugin.dependencies)).size(12))
-            .push(text::body(format_metadata("env", &plugin.env)).size(12));
-
-        content = content.push(divider::horizontal::default()).push(
-            widget::container(plugin_details.spacing(1))
-                .padding([0, 16])
-                .width(Length::Fill),
-        );
-
-        if is_installing {
-            content = content.push(
-                widget::container(text::body(fl!(
-                    "catalog-installing",
-                    name = plugin.name.clone()
-                )))
-                .padding([0, 16])
-                .width(Length::Fill),
-            );
-        } else if is_removing {
-            content = content.push(
-                widget::container(text::body(fl!(
-                    "catalog-removing",
-                    name = plugin.name.clone()
-                )))
-                .padding([0, 16])
-                .width(Length::Fill),
-            );
-        } else if installed && catalog_busy {
-            content = content.push(indented_menu_label(fl!("catalog-remove-disabled")));
-        } else if catalog_busy {
-            content = content.push(indented_menu_label(fl!("catalog-install-disabled")));
-        } else if installed {
-            content = content.push(indented_menu_button(
-                fl!("catalog-remove", name = plugin.name.clone()),
-                Message::RemoveCatalogPlugin(plugin.id.clone()),
-            ));
-        } else {
-            content = content.push(indented_menu_button(
-                fl!("catalog-install", name = plugin.name.clone()),
-                Message::InstallCatalogPlugin(plugin.id.clone()),
-            ));
-        }
+        content = content.push(catalog_plugin_card(
+            plugin,
+            installed,
+            is_installing,
+            is_removing,
+            catalog_busy,
+        ));
     }
 
     content
 }
 
-fn format_metadata(label: &str, values: &[String]) -> String {
-    if values.is_empty() {
-        format!("{label}: none")
-    } else {
-        format!("{label}: {}", values.join(", "))
+fn catalog_plugin_card<'a>(
+    plugin: &'a CatalogPlugin,
+    installed: bool,
+    installing: bool,
+    removing: bool,
+    catalog_busy: bool,
+) -> Element<'a, Message> {
+    let mut plugin_details = column![text::body(plugin.name.clone()).size(14)]
+        .spacing(4)
+        .width(Length::Fill);
+
+    if let Some(publisher) = &plugin.publisher {
+        plugin_details = plugin_details
+            .push(text::body(fl!("catalog-published-by", publisher = publisher.clone())).size(12));
     }
+
+    plugin_details = plugin_details
+        .push(text::body(plugin.description.clone()).size(13))
+        .push(catalog_metadata_badges(plugin));
+
+    let card = row![
+        catalog_monogram(&plugin.name),
+        plugin_details,
+        catalog_install_toggle(plugin, installed, installing, removing, catalog_busy)
+    ]
+    .spacing(14)
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
+
+    widget::container(
+        widget::container(card)
+            .class(catalog_card_container())
+            .padding(16)
+            .width(Length::Fill),
+    )
+    .padding([7, 14])
+    .width(Length::Fill)
+    .into()
+}
+
+fn catalog_monogram<'a>(name: &str) -> Element<'a, Message> {
+    widget::container(text::body(plugin_monogram(name)).size(18))
+        .class(catalog_monogram_container())
+        .width(Length::Fixed(52.0))
+        .height(Length::Fixed(52.0))
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center)
+        .into()
+}
+
+fn plugin_monogram(name: &str) -> String {
+    let words = plugin_name_parts(name);
+
+    if words.len() == 1 {
+        return words[0]
+            .chars()
+            .filter(|ch| ch.is_ascii_alphanumeric())
+            .take(3)
+            .collect::<String>()
+            .to_ascii_uppercase();
+    }
+
+    let acronym = words
+        .iter()
+        .filter_map(|word| word.chars().find(|ch| ch.is_ascii_alphanumeric()))
+        .take(3)
+        .collect::<String>()
+        .to_ascii_uppercase();
+
+    if acronym.is_empty() {
+        "?".to_owned()
+    } else {
+        acronym
+    }
+}
+
+fn plugin_name_parts(name: &str) -> Vec<String> {
+    let normalized = name.strip_suffix(".sh").unwrap_or(name);
+
+    normalized
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .filter(|part| !part.is_empty())
+        .filter(|part| !looks_like_interval(part))
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn plugin_interval_label(name: &str) -> Option<String> {
+    let normalized = name.strip_suffix(".sh").unwrap_or(name);
+
+    normalized
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .find(|part| looks_like_interval(part))
+        .map(ToOwned::to_owned)
+}
+
+fn looks_like_interval(value: &str) -> bool {
+    let Some(unit) = value.chars().last() else {
+        return false;
+    };
+
+    let number = &value[..value.len().saturating_sub(1)];
+    matches!(unit, 's' | 'm' | 'h' | 'd')
+        && !number.is_empty()
+        && number.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn catalog_metadata_badges<'a>(plugin: &'a CatalogPlugin) -> Element<'a, Message> {
+    let mut badges = row![catalog_badge(plugin.category.clone())]
+        .spacing(4)
+        .align_y(Alignment::Center);
+
+    for language in &plugin.languages {
+        badges = badges.push(catalog_badge(language.clone()));
+    }
+
+    badges = badges
+        .push(catalog_badge(plugin.interval.clone()))
+        .push(catalog_badge(plugin.language.clone()));
+
+    badges.into()
+}
+
+fn catalog_badge<'a>(label: impl Into<String>) -> Element<'a, Message> {
+    widget::container(text::body(label.into()).size(11))
+        .padding([1, 7])
+        .class(catalog_badge_container())
+        .into()
+}
+
+fn catalog_card_container<'a>() -> cosmic::theme::Container<'a> {
+    cosmic::theme::Container::custom(|_theme| cosmic::iced::widget::container::Style {
+        background: Some(cosmic::iced::Background::Color(
+            cosmic::iced::Color::from_rgb8(43, 43, 43),
+        )),
+        border: cosmic::iced::Border {
+            color: cosmic::iced::Color::from_rgba8(255, 255, 255, 0.08),
+            width: 1.0,
+            radius: 8.0.into(),
+        },
+        ..Default::default()
+    })
+}
+
+fn catalog_monogram_container<'a>() -> cosmic::theme::Container<'a> {
+    cosmic::theme::Container::custom(|_theme| cosmic::iced::widget::container::Style {
+        text_color: Some(cosmic::iced::Color::from_rgb8(174, 208, 255)),
+        background: Some(cosmic::iced::Background::Color(
+            cosmic::iced::Color::from_rgb8(32, 40, 50),
+        )),
+        border: cosmic::iced::Border {
+            color: cosmic::iced::Color::from_rgb8(89, 103, 122),
+            width: 2.0,
+            radius: 8.0.into(),
+        },
+        ..Default::default()
+    })
+}
+
+fn catalog_badge_container<'a>() -> cosmic::theme::Container<'a> {
+    cosmic::theme::Container::custom(|_theme| cosmic::iced::widget::container::Style {
+        text_color: Some(cosmic::iced::Color::from_rgb8(219, 234, 254)),
+        background: Some(cosmic::iced::Background::Color(
+            cosmic::iced::Color::from_rgb8(58, 69, 83),
+        )),
+        border: cosmic::iced::Border {
+            radius: 999.0.into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+}
+
+fn catalog_install_toggle<'a>(
+    plugin: &'a CatalogPlugin,
+    installed: bool,
+    installing: bool,
+    removing: bool,
+    catalog_busy: bool,
+) -> Element<'a, Message> {
+    let toggled = if installing {
+        true
+    } else if removing {
+        false
+    } else {
+        installed
+    };
+
+    let label = if installing {
+        fl!("catalog-toggle-installing")
+    } else if removing {
+        fl!("catalog-toggle-removing")
+    } else if installed {
+        fl!("catalog-toggle-installed")
+    } else {
+        fl!("catalog-toggle-available")
+    };
+
+    let toggler: Element<'a, Message> = if catalog_busy {
+        widget::toggler(toggled).size(24).into()
+    } else if installed {
+        let plugin_id = plugin.id.clone();
+        widget::toggler(true)
+            .size(24)
+            .on_toggle(move |_| Message::RemoveCatalogPlugin(plugin_id.clone()))
+            .into()
+    } else {
+        let plugin_id = plugin.id.clone();
+        widget::toggler(false)
+            .size(24)
+            .on_toggle(move |_| Message::InstallCatalogPlugin(plugin_id.clone()))
+            .into()
+    };
+
+    column![text::body(label).size(12), toggler]
+        .spacing(6)
+        .align_x(Alignment::End)
+        .width(Length::Shrink)
+        .into()
 }
 
 fn indented_menu_button<'a>(label: impl Into<String>, message: Message) -> Element<'a, Message> {
@@ -1171,11 +1426,30 @@ fn indented_menu_button<'a>(label: impl Into<String>, message: Message) -> Eleme
     .into()
 }
 
-fn indented_menu_label<'a>(label: impl Into<String>) -> Element<'a, Message> {
-    widget::container(text::body(label.into()))
-        .padding([2, 0, 2, 16])
-        .width(Length::Fill)
-        .into()
+fn featured_menu_button<'a>(label: impl Into<String>, message: Message) -> Element<'a, Message> {
+    menu_button(
+        widget::container(text::body(label.into()))
+            .class(featured_action_container())
+            .padding([9, 18])
+            .width(Length::Fill),
+    )
+    .padding([14, 18])
+    .on_press(message)
+    .into()
+}
+
+fn featured_action_container<'a>() -> cosmic::theme::Container<'a> {
+    cosmic::theme::Container::custom(|_theme| cosmic::iced::widget::container::Style {
+        text_color: Some(cosmic::iced::Color::from_rgb8(17, 21, 28)),
+        background: Some(cosmic::iced::Background::Color(
+            cosmic::iced::Color::from_rgb8(159, 197, 255),
+        )),
+        border: cosmic::iced::Border {
+            radius: 8.0.into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
 }
 
 fn panel_image_element(image: &EmbeddedImage, height: u16) -> Option<Element<'static, Message>> {

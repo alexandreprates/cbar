@@ -31,6 +31,57 @@ It is designed for small, scriptable workflows that belong in the desktop panel:
   <img src="docs/screenshots/cbar-plugin-catalog.png" width="360" alt="cbar plugin catalog popup">
 </p>
 
+## Quick Install on Pop!_OS
+
+For most users, install the latest prebuilt release without compiling from source:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alexandreprates/cbar/main/scripts/install-latest.sh | bash
+```
+
+The installer downloads the latest GitHub release and installs:
+
+- `~/.local/bin/cbar`
+- `~/.local/share/applications/io.github.alexprates.CBar.desktop`
+- icons under `~/.local/share/icons/hicolor/scalable/apps/`
+- showcase plugins under `~/.config/cbar/plugins/`
+
+The applet and its plugins run as your current user. Review local plugins before enabling actions that run shell commands.
+
+## After Installing
+
+The desktop entry is installed with COSMIC applet metadata:
+
+- `X-CosmicApplet=true`
+- `X-CosmicHoverPopup=Auto`
+
+If `cbar` does not appear in COSMIC applet pickers right away, log out and back in or restart the COSMIC panel/session.
+
+You can also start the applet binary directly for a quick smoke test:
+
+```bash
+~/.local/bin/cbar
+```
+
+## Uninstall
+
+If you installed through the release installer, clone the repository and run the uninstall script:
+
+```bash
+git clone https://github.com/alexandreprates/cbar.git
+cd cbar
+./scripts/uninstall-local.sh
+```
+
+The uninstall script removes the local binary, desktop entry, icons, and metainfo files from `~/.local`. It does not remove your plugin directory under `~/.config/cbar/plugins`.
+
+## Troubleshooting
+
+- If `~/.local/bin/cbar` does not exist, rerun the installer and check for download errors.
+- If COSMIC does not list the applet, log out and back in or restart the panel/session.
+- If a plugin action does not work, inspect the plugin script under `~/.config/cbar/plugins`; catalog plugins are local scripts executed as your user.
+- If you want to reinstall from scratch, run `./scripts/uninstall-local.sh` from a repository checkout and then run the quick install command again.
+
 ## Status
 
 `cbar` is currently ready for early adopters and community feedback.
@@ -136,69 +187,12 @@ Additional examples:
 - [plugins/showcase-cpu-chart.5s.sh](plugins/showcase-cpu-chart.5s.sh) demonstrates inline SVG images with a tiny CPU usage history chart.
 - [plugins/showcase-status.5s.sh](plugins/showcase-status.5s.sh) demonstrates dynamic local status, thresholds, separators, and diagnostics.
 
-## Build Requirements
-
-System dependencies commonly needed for local development on Pop!_OS:
-
-```bash
-sudo apt update
-sudo apt install -y cmake just libexpat1-dev libfontconfig-dev libfreetype-dev libxkbcommon-dev pkgconf curl
-```
-
-Rust is expected to be installed through `rustup`:
-
-```bash
-curl https://sh.rustup.rs -sSf | sh
-source ~/.cargo/env
-```
-
-## Running from Source
-
-```bash
-source ~/.cargo/env
-cargo run
-```
-
-To force a specific plugin directory:
-
-```bash
-CBAR_PLUGIN_DIR="$PWD/plugins" cargo run
-```
-
-## Local Installation for COSMIC
-
-Install locally into `~/.local`:
-
-```bash
-./scripts/install-local.sh
-```
-
-This installs:
-
-- `~/.local/bin/cbar`
-- `~/.local/share/applications/io.github.alexprates.CBar.desktop`
-- icons under `~/.local/share/icons/hicolor/scalable/apps/`
-- the overview showcase plugin in `~/.config/cbar/plugins/` if it does not already exist
-
-You can remove the local installation with:
-
-```bash
-./scripts/uninstall-local.sh
-```
-
-Equivalent `just` targets are available:
-
-```bash
-just install-local
-just uninstall-local
-```
-
 ## Installing from a GitHub Release
 
-If you want to install the prebuilt release binary without compiling locally, clone the repository and let the installer resolve the latest published release automatically:
+The quick install command is the recommended release path. If you prefer a repository checkout, clone with HTTPS and let the installer resolve the latest published release automatically:
 
 ```bash
-git clone git@github.com:alexandreprates/cbar.git
+git clone https://github.com/alexandreprates/cbar.git
 cd cbar
 ./scripts/install-from-release.sh
 ```
@@ -206,7 +200,7 @@ cd cbar
 If you already downloaded a release archive, you can still pass it explicitly:
 
 ```bash
-git clone git@github.com:alexandreprates/cbar.git
+git clone https://github.com/alexandreprates/cbar.git
 cd cbar
 
 version="v1.4.1"
@@ -231,7 +225,7 @@ The installer reuses the desktop entry and icons from the repository and install
 - icons under `~/.local/share/icons/hicolor/scalable/apps/`
 - the overview showcase plugin in `~/.config/cbar/plugins/` if it does not already exist
 
-If you prefer a direct installation from GitHub without cloning the repository first, run:
+If you prefer a direct installation from GitHub without cloning the repository first, use the quick install command:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/alexandreprates/cbar/main/scripts/install-latest.sh | bash
@@ -245,19 +239,47 @@ If the archive is placed in the repository root, the repository installer can au
 ./scripts/install-from-release.sh
 ```
 
-## Testing in COSMIC
+## Development Setup
 
-The local desktop entry is installed with:
+System dependencies commonly needed for local development on Pop!_OS:
 
-- `X-CosmicApplet=true`
-- `X-CosmicHoverPopup=Auto`
+```bash
+sudo apt update
+sudo apt install -y cmake just libexpat1-dev libfontconfig-dev libfreetype-dev libxkbcommon-dev pkgconf curl
+```
 
-Depending on the session state, COSMIC may require:
+Rust is expected to be installed through `rustup`:
 
-- logging out and back in
-- restarting the panel or session
+```bash
+curl https://sh.rustup.rs -sSf | sh
+source ~/.cargo/env
+```
 
-before the new applet entry becomes visible in applet pickers or behaves consistently.
+Run from source:
+
+```bash
+source ~/.cargo/env
+cargo run
+```
+
+To force a specific plugin directory:
+
+```bash
+CBAR_PLUGIN_DIR="$PWD/plugins" cargo run
+```
+
+Install a local development build into `~/.local`:
+
+```bash
+./scripts/install-local.sh
+```
+
+Equivalent `just` targets are available:
+
+```bash
+just install-local
+just uninstall-local
+```
 
 ## Development
 
