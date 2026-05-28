@@ -11,7 +11,9 @@ prefix="${CBAR_PREFIX:-$HOME/.local}"
 bin_dir="${prefix}/bin"
 app_dir="${prefix}/share/applications"
 icon_dir="${prefix}/share/icons/hicolor/scalable/apps"
+config_dir="${HOME}/.config/cbar"
 plugin_dir="${CBAR_PLUGIN_DIR:-$HOME/.config/cbar/plugins}"
+env_file="${config_dir}/env"
 binary_path="${bin_dir}/cbar"
 desktop_template="${repo_root}/data/io.github.alexprates.CBar.desktop.in"
 desktop_target="${app_dir}/io.github.alexprates.CBar.desktop"
@@ -122,7 +124,7 @@ if [[ ! -f "${tmp_dir}/cbar" ]]; then
   exit 1
 fi
 
-mkdir -p "${bin_dir}" "${app_dir}" "${icon_dir}" "${plugin_dir}"
+mkdir -p "${bin_dir}" "${app_dir}" "${icon_dir}" "${config_dir}" "${plugin_dir}"
 
 install -m 0755 "${tmp_dir}/cbar" "${binary_path}"
 install -m 0644 \
@@ -138,6 +140,13 @@ if [[ ! -e "${plugin_dir}/showcase-overview.10s.sh" ]]; then
   install -m 0755 "${repo_root}/plugins/showcase-overview.10s.sh" "${plugin_dir}/showcase-overview.10s.sh"
 fi
 
+if [[ ! -e "${env_file}" ]]; then
+  {
+    printf '# Optional environment variables for cbar plugins.\n'
+    printf '# Example: CBAR_SSH_HOSTS="server,user@host"\n'
+  } > "${env_file}"
+fi
+
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "${app_dir}" || true
 fi
@@ -147,5 +156,6 @@ printf 'Archive: %s\n' "${archive_path}"
 printf 'Binary: %s\n' "${binary_path}"
 printf 'Desktop entry: %s\n' "${desktop_target}"
 printf 'Plugin dir: %s\n' "${plugin_dir}"
+printf 'Env file: %s\n' "${env_file}"
 printf '\n'
 printf 'If COSMIC does not pick up the applet right away, log out/in or restart the panel/session.\n'

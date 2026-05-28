@@ -1,3 +1,4 @@
+use crate::config::{default_env_path, load_env_file};
 use crate::parser::{
     EmbeddedImage, MenuEntry, ParsedPlugin, parse_plugin_output, parse_refresh_interval,
 };
@@ -58,29 +59,31 @@ pub async fn trigger_entry(plugin: &PluginState, entry: &MenuEntry) -> Result<bo
     }
 
     if let Some(shell) = &entry.params.shell {
-        spawn_action_command(
+        run_action_command(
             plugin,
             shell.as_str(),
             &entry.params.params,
             entry.params.terminal,
-        )?;
+        )
+        .await?;
         return Ok(entry.params.refresh);
     }
 
     if !entry.params.params.is_empty() {
-        spawn_action_command(
+        run_action_command(
             plugin,
             plugin.path.to_string_lossy().as_ref(),
             &entry.params.params,
             entry.params.terminal,
-        )?;
+        )
+        .await?;
         return Ok(entry.params.refresh);
     }
 
     Ok(false)
 }
 
-fn spawn_action_command(
+async fn run_action_command(
     plugin: &PluginState,
     executable: &str,
     args: &[String],
@@ -94,7 +97,7 @@ fn spawn_action_command(
         command.arg(executable);
         command.args(args);
         command.current_dir(plugin_dir);
-        command.envs(std::env::vars());
+        apply_plugin_env(&mut command);
         command
             .spawn()
             .map_err(|err| format!("failed to spawn terminal action: {err}"))?;
@@ -104,10 +107,15 @@ fn spawn_action_command(
     let mut command = Command::new(executable);
     command.args(args);
     command.current_dir(plugin_dir);
-    command.envs(std::env::vars());
-    command
-        .spawn()
-        .map_err(|err| format!("failed to spawn action: {err}"))?;
+    apply_plugin_env(&mut command);
+    let status = command
+        .status()
+        .await
+        .map_err(|err| format!("failed to run action: {err}"))?;
+
+    if !status.success() {
+        return Err(format!("action exited with status {status}"));
+    }
 
     Ok(())
 }
@@ -165,7 +173,10 @@ async fn refresh_plugin(plugin: &mut PluginState) {
 }
 
 async fn run_plugin(path: &Path) -> Result<String, String> {
-    let output = Command::new(path)
+    let mut command = Command::new(path);
+    apply_plugin_env(&mut command);
+
+    let output = command
         .output()
         .await
         .map_err(|err| format!("failed to execute plugin: {err}"))?;
@@ -181,4 +192,10 @@ async fn run_plugin(path: &Path) -> Result<String, String> {
     }
 
     String::from_utf8(output.stdout).map_err(|err| format!("invalid utf-8 output: {err}"))
+}
+
+fn apply_plugin_env(command: &mut Command) {
+    if let Ok(env) = load_env_file(&default_env_path()) {
+        command.envs(env);
+    }
 }

@@ -10,7 +10,9 @@ prefix="${CBAR_PREFIX:-$HOME/.local}"
 bin_dir="${prefix}/bin"
 app_dir="${prefix}/share/applications"
 icon_dir="${prefix}/share/icons/hicolor/scalable/apps"
+config_dir="${HOME}/.config/cbar"
 plugin_dir="${CBAR_PLUGIN_DIR:-$HOME/.config/cbar/plugins}"
+env_file="${config_dir}/env"
 binary_path="${bin_dir}/cbar"
 desktop_target="${app_dir}/io.github.alexprates.CBar.desktop"
 release_api_url="https://api.github.com/repos/${repo_slug}/releases/latest"
@@ -117,7 +119,7 @@ if [[ ! -f "${tmp_dir}/cbar" ]]; then
   exit 1
 fi
 
-mkdir -p "$bin_dir" "$app_dir" "$icon_dir" "$plugin_dir"
+mkdir -p "$bin_dir" "$app_dir" "$icon_dir" "$config_dir" "$plugin_dir"
 
 install -m 0755 "${tmp_dir}/cbar" "$binary_path"
 install -m 0644 "$symbolic_icon" "${icon_dir}/io.github.alexprates.CBar-symbolic.svg"
@@ -129,6 +131,13 @@ for plugin_name in "${showcase_plugins[@]}"; do
   install_optional_plugin "$raw_base_url" "$plugin_name"
 done
 
+if [[ ! -e "$env_file" ]]; then
+  {
+    printf '# Optional environment variables for cbar plugins.\n'
+    printf '# Example: CBAR_SSH_HOSTS="server,user@host"\n'
+  } > "$env_file"
+fi
+
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$app_dir" || true
 fi
@@ -139,6 +148,7 @@ printf 'Release: %s\n' "$release_tag"
 printf 'Binary: %s\n' "$binary_path"
 printf 'Desktop entry: %s\n' "$desktop_target"
 printf 'Plugin dir: %s\n' "$plugin_dir"
+printf 'Env file: %s\n' "$env_file"
 printf '\n'
 printf 'Run with:\n'
 printf '  %s\n' "$binary_path"

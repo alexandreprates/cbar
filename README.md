@@ -146,6 +146,24 @@ The plugin output format is inspired by [xbar](https://github.com/matryer/xbar),
 
 Showcase plugins are included under [plugins/](plugins/) to demonstrate panel output, popup structure, actions, environment configuration, refresh behavior, and dynamic status rows.
 
+## Plugin Environment
+
+`cbar` loads optional plugin environment variables from:
+
+```text
+~/.config/cbar/env
+```
+
+The file uses simple `KEY=value` assignments. Values from this file are added to plugin refreshes and popup actions, overriding the inherited process environment for matching keys.
+
+```bash
+CBAR_SSH_HOSTS="server,user@host"
+CBAR_PING_HOST="1.1.1.1"
+CBAR_SERVICE_UNITS="docker,user:pipewire"
+```
+
+Missing env files are ignored. Lines starting with `#` are comments.
+
 ## Plugin Catalog
 
 The applet settings include a plugin catalog view backed by the public [cbar-plugins](https://github.com/alexandreprates/cbar-plugins) repository.
