@@ -37,6 +37,12 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.4.3" date="2026-05-28">
+      <description>
+        <p>Kept plugin popups compact while preserving wider settings and catalog views.</p>
+        <p>Improved panel click behavior by opening plugin menus separately from settings.</p>
+      </description>
+    </release>
     <release version="1.4.2" date="2026-05-28">
       <description>
         <p>Kept the panel clean during loading, empty plugin, and no-enabled-plugin states by showing the cbar icon instead of status text.</p>
