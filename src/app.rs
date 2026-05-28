@@ -24,6 +24,8 @@ use tokio::process::Command;
 const APP_ID: &str = "io.github.alexprates.CBar";
 const REPOSITORY_URL: &str = "https://github.com/alexandreprates/cbar";
 const PANEL_IMAGE_HEIGHT: u16 = 22;
+const PLUGIN_MENU_POPUP_WIDTH: f32 = 280.0;
+const PLUGIN_MENU_POPUP_MIN_WIDTH: f32 = 180.0;
 const MENU_POPUP_WIDTH: f32 = 420.0;
 const MENU_POPUP_MIN_WIDTH: f32 = 360.0;
 const CATALOG_POPUP_WIDTH: f32 = 520.0;
@@ -60,16 +62,18 @@ struct CBarApplet {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PopupView {
-    Menu,
+    PluginMenu,
     Settings,
     Catalog,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    TogglePopup(Option<usize>),
+    TogglePopup {
+        plugin_index: Option<usize>,
+        popup_view: PopupView,
+    },
     OpenBarSettings,
-    CloseBarSettings,
     PopupClosed(window::Id),
     Tick,
     ReloadPlugins,
@@ -117,7 +121,7 @@ impl cosmic::Application for CBarApplet {
                 core,
                 popup: None,
                 popup_plugin_index: None,
-                popup_view: PopupView::Menu,
+                popup_view: PopupView::Settings,
                 config,
                 config_path,
                 plugin_dir: plugin_dir.clone(),
@@ -154,28 +158,31 @@ impl cosmic::Application for CBarApplet {
 
     fn update(&mut self, message: Self::Message) -> Task<Self::Message> {
         match message {
-            Message::TogglePopup(plugin_index) => {
-                if self.popup.is_some() && self.popup_plugin_index == plugin_index {
+            Message::TogglePopup {
+                plugin_index,
+                popup_view,
+            } => {
+                if self.popup.is_some()
+                    && self.popup_plugin_index == plugin_index
+                    && self.popup_view == popup_view
+                {
                     self.popup_plugin_index = None;
-                    self.popup_view = PopupView::Menu;
+                    self.popup_view = PopupView::Settings;
                     if let Some(popup) = self.popup.take() {
                         return destroy_popup(popup);
                     }
                 }
 
-                return self.open_popup(plugin_index);
+                return self.open_popup_with_view(plugin_index, popup_view);
             }
             Message::OpenBarSettings => {
                 self.popup_view = PopupView::Settings;
-            }
-            Message::CloseBarSettings => {
-                self.popup_view = PopupView::Menu;
             }
             Message::PopupClosed(id) => {
                 if self.popup == Some(id) {
                     self.popup = None;
                     self.popup_plugin_index = None;
-                    self.popup_view = PopupView::Menu;
+                    self.popup_view = PopupView::Settings;
                 }
             }
             Message::Tick => {
@@ -462,11 +469,19 @@ impl cosmic::Application for CBarApplet {
         let content = if enabled_plugins.is_empty() {
             let button =
                 button::custom(container(cbar_panel_icon_content()).center_y(button_height))
-                    .on_press_down(Message::TogglePopup(None))
+                    .on_press_down(Message::TogglePopup {
+                        plugin_index: None,
+                        popup_view: PopupView::Settings,
+                    })
                     .padding([0, horizontal_padding])
                     .class(cosmic::theme::Button::AppletIcon);
 
-            Element::from(button)
+            Element::from(
+                widget::mouse_area(button).on_right_press(Message::TogglePopup {
+                    plugin_index: None,
+                    popup_view: PopupView::Settings,
+                }),
+            )
         } else {
             let plugin_padding = if enabled_plugins.len() > 1 {
                 horizontal_padding / 2
@@ -481,11 +496,19 @@ impl cosmic::Application for CBarApplet {
             for (plugin_index, plugin) in enabled_plugins {
                 let button =
                     button::custom(container(plugin_panel_content(plugin)).center_y(button_height))
-                        .on_press_down(Message::TogglePopup(Some(plugin_index)))
+                        .on_press_down(Message::TogglePopup {
+                            plugin_index: Some(plugin_index),
+                            popup_view: PopupView::PluginMenu,
+                        })
                         .padding([0, plugin_padding])
                         .class(cosmic::theme::Button::AppletIcon);
 
-                buttons = buttons.push(button);
+                buttons = buttons.push(widget::mouse_area(button).on_right_press(
+                    Message::TogglePopup {
+                        plugin_index: Some(plugin_index),
+                        popup_view: PopupView::Settings,
+                    },
+                ));
             }
 
             buttons.into()
@@ -513,7 +536,7 @@ impl cosmic::Application for CBarApplet {
             .align_x(Alignment::Start);
 
         match self.popup_view {
-            PopupView::Menu => {
+            PopupView::PluginMenu => {
                 if let Some(plugin_index) = self.popup_plugin_index {
                     if let Some(plugin) = self.plugins.get(plugin_index) {
                         content = push_plugin_menu(content, plugin_index, plugin);
@@ -540,13 +563,6 @@ impl cosmic::Application for CBarApplet {
                             content.push(popup_label(fl!("no-selected-plugins").to_string(), 14));
                     }
                 }
-
-                content = content
-                    .push(divider::horizontal::default())
-                    .push(indented_menu_button(
-                        fl!("bar-settings"),
-                        Message::OpenBarSettings,
-                    ));
             }
             PopupView::Settings => {
                 content = build_bar_settings_view(content, &self.plugins, &self.config);
@@ -578,15 +594,20 @@ impl cosmic::Application for CBarApplet {
             }
         }
 
+        let (popup_width, popup_min_width) = match self.popup_view {
+            PopupView::PluginMenu => (PLUGIN_MENU_POPUP_WIDTH, PLUGIN_MENU_POPUP_MIN_WIDTH),
+            PopupView::Settings | PopupView::Catalog => (MENU_POPUP_WIDTH, MENU_POPUP_MIN_WIDTH),
+        };
+
         let limits = Limits::NONE
-            .min_width(MENU_POPUP_MIN_WIDTH)
-            .max_width(MENU_POPUP_WIDTH)
+            .min_width(popup_min_width)
+            .max_width(popup_width)
             .min_height(1.0)
             .max_height(POPUP_MAX_HEIGHT);
 
         self.core
             .applet
-            .popup_container(container(scrollable(content)).width(Length::Fixed(MENU_POPUP_WIDTH)))
+            .popup_container(container(scrollable(content)).width(Length::Fixed(popup_width)))
             .limits(limits)
             .into()
     }
@@ -604,10 +625,6 @@ impl cosmic::Application for CBarApplet {
 }
 
 impl CBarApplet {
-    fn open_popup(&mut self, plugin_index: Option<usize>) -> Task<Message> {
-        self.open_popup_with_view(plugin_index, PopupView::Menu)
-    }
-
     fn open_popup_with_view(
         &mut self,
         plugin_index: Option<usize>,
@@ -989,8 +1006,6 @@ fn build_bar_settings_view<'a>(
         .count();
 
     content = content
-        .push(indented_menu_button(fl!("back"), Message::CloseBarSettings))
-        .push(divider::horizontal::default())
         .push(featured_menu_button(
             fl!("explore-plugin-catalog"),
             Message::OpenPluginCatalog,
