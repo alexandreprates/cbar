@@ -203,7 +203,7 @@ If you already downloaded a release archive, you can still pass it explicitly:
 git clone https://github.com/alexandreprates/cbar.git
 cd cbar
 
-version="v1.4.1"
+version="v1.4.2"
 archive="cbar-${version}-x86_64-unknown-linux-gnu.tar.gz"
 
 curl -LO "https://github.com/alexandreprates/cbar/releases/download/${version}/${archive}"
@@ -213,7 +213,7 @@ curl -LO "https://github.com/alexandreprates/cbar/releases/download/${version}/$
 The script also accepts the archive path through `CBAR_RELEASE_ARCHIVE`:
 
 ```bash
-CBAR_RELEASE_ARCHIVE=./cbar-v1.4.1-x86_64-unknown-linux-gnu.tar.gz ./scripts/install-from-release.sh
+CBAR_RELEASE_ARCHIVE=./cbar-v1.4.2-x86_64-unknown-linux-gnu.tar.gz ./scripts/install-from-release.sh
 ```
 
 Without an explicit archive path, `scripts/install-from-release.sh` first looks for exactly one local `cbar-*-x86_64-unknown-linux-gnu.tar.gz` file in the repository root. If none is available, it queries the latest GitHub release, resolves the current tag, and downloads the matching versioned archive automatically.

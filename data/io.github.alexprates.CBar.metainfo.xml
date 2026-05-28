@@ -37,6 +37,13 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.4.2" date="2026-05-28">
+      <description>
+        <p>Kept the panel clean during loading, empty plugin, and no-enabled-plugin states by showing the cbar icon instead of status text.</p>
+        <p>Added a warning icon for broken or missing enabled plugins while keeping error details in the popup menu.</p>
+        <p>Improved README installation guidance for Pop!_OS users.</p>
+      </description>
+    </release>
     <release version="1.4.1" date="2026-05-26">
       <description>
         <p>Added Swedish translation.</p>
