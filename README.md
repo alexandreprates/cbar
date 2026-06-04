@@ -168,7 +168,9 @@ Missing env files are ignored. Lines starting with `#` are comments.
 
 The applet settings include a plugin catalog view backed by the public [cbar-plugins](https://github.com/alexandreprates/cbar-plugins) repository.
 
-Catalog installation downloads the selected plugin script into the active plugin directory, validates the published SHA-256 checksum, marks the file executable, and reloads the plugin list. Installed catalog plugins can also be removed from the same catalog view. Catalog plugins are local scripts and run as the current user.
+Catalog installation downloads the selected plugin script into the active plugin directory, validates the published SHA-256 checksum, marks the file executable, records the installed catalog version under `~/.config/cbar/catalog-installations.json`, and reloads the plugin list. Installed catalog plugins can also be removed from the same catalog view. Catalog plugins are local scripts and run as the current user.
+
+When a catalog plugin publishes a newer semantic version, the catalog shows an explicit update action. Updates validate the new checksum before replacing the local script and refuse to overwrite catalog-installed plugins that were modified locally. Existing installs from older cbar releases are backfilled into the local catalog installation manifest when their local checksum still matches the published catalog entry.
 
 By default, `cbar` loads:
 
