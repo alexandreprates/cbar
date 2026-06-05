@@ -164,6 +164,8 @@ CBAR_SERVICE_UNITS="docker,user:pipewire"
 
 Missing env files are ignored. Lines starting with `#` are comments.
 
+Showcase and catalog plugins that expose configurable `CBAR_*` values include an `Edit cbar env` popup action. The action creates `~/.config/cbar/env` when needed and opens it with COSMIC's editor, falling back to the desktop opener when `cosmic-edit` is unavailable.
+
 ## Plugin Catalog
 
 The applet settings include a plugin catalog view backed by the public [cbar-plugins](https://github.com/alexandreprates/cbar-plugins) repository.

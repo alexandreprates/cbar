@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+edit_cbar_env_item() {
+  echo "Edit cbar env | bash=/bin/bash param1=-lc param2='mkdir -p \"\$HOME/.config/cbar\" && touch \"\$HOME/.config/cbar/env\" && if command -v cosmic-edit >/dev/null 2>&1; then cosmic-edit \"\$HOME/.config/cbar/env\" >/dev/null 2>&1 & elif command -v xdg-open >/dev/null 2>&1; then xdg-open \"\$HOME/.config/cbar/env\" >/dev/null 2>&1 & fi'"
+}
+
 cpu_warn="${CBAR_SHOWCASE_CPU_WARN:-75}"
 history_size=5
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/cbar"
@@ -106,3 +110,5 @@ echo "--History samples: ${history} | disabled=true"
 echo "--Warning threshold: ${cpu_warn}% | disabled=true"
 echo "Open CPU details | shell=/bin/sh param1=-lc param2='top -b -n 1 | head -20; printf \"\\n\"; read -r -p \"Press enter to close...\"' terminal=true"
 echo "Reset chart history | shell=/bin/sh param1=-lc param2='rm -f \"${state_file}\"' refresh=true"
+echo "---"
+edit_cbar_env_item
