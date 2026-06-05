@@ -1,10 +1,11 @@
+use crate::config::default_env_path;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufReader, BufWriter, ErrorKind, Write};
+use std::io::{BufRead, BufReader, BufWriter, ErrorKind, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -157,6 +158,7 @@ pub async fn install_catalog_plugin(
 
     let bytes = download_catalog_plugin(&plugin).await?;
     validate_plugin_checksum(&plugin, &bytes)?;
+    ensure_catalog_plugin_env_entries(&plugin, &default_env_path())?;
 
     fs::create_dir_all(&plugin_dir).map_err(|err| {
         format!(
@@ -232,6 +234,7 @@ pub async fn update_catalog_plugin(
 
     let bytes = download_catalog_plugin(&plugin).await?;
     validate_plugin_checksum(&plugin, &bytes)?;
+    ensure_catalog_plugin_env_entries(&plugin, &default_env_path())?;
 
     let tmp_destination = destination.with_file_name(format!(".{}.tmp", plugin.install_name));
     fs::write(&tmp_destination, &bytes).map_err(|err| {
@@ -386,6 +389,104 @@ fn mark_plugin_executable(path: &Path) -> Result<(), String> {
     permissions.set_mode(0o755);
     fs::set_permissions(path, permissions)
         .map_err(|err| format!("failed to mark plugin executable {}: {err}", path.display()))
+}
+
+fn ensure_catalog_plugin_env_entries(plugin: &CatalogPlugin, path: &Path) -> Result<(), String> {
+    if plugin.env.is_empty() {
+        return Ok(());
+    }
+
+    let existing_keys = read_existing_env_keys(path)?;
+    let missing_keys = plugin
+        .env
+        .iter()
+        .filter(|key| is_catalog_env_key(key))
+        .filter(|key| !existing_keys.contains(*key))
+        .collect::<Vec<_>>();
+
+    if missing_keys.is_empty() {
+        return Ok(());
+    }
+
+    let parent = path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    fs::create_dir_all(&parent).map_err(|err| {
+        format!(
+            "failed to create env file directory {}: {err}",
+            parent.display()
+        )
+    })?;
+
+    let needs_leading_newline = fs::metadata(path).is_ok_and(|metadata| metadata.len() > 0);
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .map_err(|err| format!("failed to open env file {}: {err}", path.display()))?;
+
+    if needs_leading_newline {
+        writeln!(file)
+            .map_err(|err| format!("failed to write env file {}: {err}", path.display()))?;
+    }
+
+    writeln!(
+        file,
+        "# Environment variables for {} catalog plugin.",
+        plugin.name
+    )
+    .map_err(|err| format!("failed to write env file {}: {err}", path.display()))?;
+    for key in missing_keys {
+        writeln!(file, "# {key}=")
+            .map_err(|err| format!("failed to write env file {}: {err}", path.display()))?;
+    }
+
+    Ok(())
+}
+
+fn read_existing_env_keys(path: &Path) -> Result<std::collections::BTreeSet<String>, String> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(err) if err.kind() == ErrorKind::NotFound => {
+            return Ok(std::collections::BTreeSet::new());
+        }
+        Err(err) => return Err(format!("failed to open env file {}: {err}", path.display())),
+    };
+
+    let mut keys = std::collections::BTreeSet::new();
+    for (line_index, line) in BufReader::new(file).lines().enumerate() {
+        let line_number = line_index + 1;
+        let line = line.map_err(|err| {
+            format!(
+                "failed to read env file {} at line {}: {err}",
+                path.display(),
+                line_number
+            )
+        })?;
+        if let Some(key) = env_key_from_line(&line) {
+            keys.insert(key.to_owned());
+        }
+    }
+
+    Ok(keys)
+}
+
+fn env_key_from_line(line: &str) -> Option<&str> {
+    let line = line.trim();
+    let line = line.strip_prefix('#').map(str::trim_start).unwrap_or(line);
+    let (key, _) = line.split_once('=')?;
+    let key = key.trim();
+    is_catalog_env_key(key).then_some(key)
+}
+
+fn is_catalog_env_key(key: &str) -> bool {
+    key.strip_prefix("CBAR_").is_some_and(|suffix| {
+        !suffix.is_empty()
+            && suffix
+                .chars()
+                .all(|ch| ch == '_' || ch.is_ascii_uppercase() || ch.is_ascii_digit())
+    })
 }
 
 pub fn default_catalog_installations_path() -> PathBuf {
@@ -604,8 +705,9 @@ fn sha256_hex(bytes: &[u8]) -> String {
 mod tests {
     use super::{
         CatalogInstallation, CatalogInstallations, CatalogPlugin, CatalogPluginInstallState,
-        MAX_PLUGIN_DOWNLOAD_BYTES, catalog_plugin_install_status, reconcile_catalog_installations,
-        remove_catalog_plugin, sha256_hex, validate_declared_size, validate_plugin_version,
+        MAX_PLUGIN_DOWNLOAD_BYTES, catalog_plugin_install_status,
+        ensure_catalog_plugin_env_entries, reconcile_catalog_installations, remove_catalog_plugin,
+        sha256_hex, validate_declared_size, validate_plugin_version,
     };
     use std::collections::BTreeMap;
     use std::fs;
@@ -749,6 +851,77 @@ mod tests {
         let plugin = test_plugin("test.invalid", "invalid.1m.sh", "not-semver", b"invalid");
 
         assert!(validate_plugin_version(&plugin).is_err());
+    }
+
+    #[test]
+    fn writes_missing_catalog_env_entries_as_commented_placeholders() {
+        let config_dir = unique_test_dir("env-placeholders");
+        let env_path = config_dir.join("env");
+        let mut plugin = test_plugin("test.env", "env.1m.sh", "1.0.0", b"env");
+        plugin.env = vec!["CBAR_FIRST".to_owned(), "CBAR_SECOND".to_owned()];
+
+        ensure_catalog_plugin_env_entries(&plugin, &env_path)
+            .expect("env placeholders should be written");
+
+        let content = fs::read_to_string(&env_path).expect("env file should be readable");
+        assert!(content.contains("# Environment variables for Test catalog plugin."));
+        assert!(content.contains("# CBAR_FIRST="));
+        assert!(content.contains("# CBAR_SECOND="));
+
+        cleanup_path(&config_dir);
+    }
+
+    #[test]
+    fn catalog_env_entries_preserve_existing_values_and_comments() {
+        let config_dir = unique_test_dir("env-existing");
+        fs::create_dir_all(&config_dir).expect("config dir should be created");
+        let env_path = config_dir.join("env");
+        fs::write(
+            &env_path,
+            "CBAR_FIRST=custom\n# CBAR_SECOND=\n# unrelated comment\n",
+        )
+        .expect("env file should be written");
+        let mut plugin = test_plugin("test.env", "env.1m.sh", "1.0.0", b"env");
+        plugin.env = vec![
+            "CBAR_FIRST".to_owned(),
+            "CBAR_SECOND".to_owned(),
+            "CBAR_THIRD".to_owned(),
+        ];
+
+        ensure_catalog_plugin_env_entries(&plugin, &env_path)
+            .expect("only missing env placeholders should be written");
+
+        let content = fs::read_to_string(&env_path).expect("env file should be readable");
+        assert_eq!(content.matches("CBAR_FIRST").count(), 1);
+        assert_eq!(content.matches("CBAR_SECOND").count(), 1);
+        assert_eq!(content.matches("CBAR_THIRD").count(), 1);
+        assert!(content.contains("# CBAR_THIRD="));
+
+        cleanup_path(&config_dir);
+    }
+
+    #[test]
+    fn catalog_env_entries_ignore_invalid_or_non_cbar_names() {
+        let config_dir = unique_test_dir("env-invalid");
+        let env_path = config_dir.join("env");
+        let mut plugin = test_plugin("test.env", "env.1m.sh", "1.0.0", b"env");
+        plugin.env = vec![
+            "CBAR_VALID".to_owned(),
+            "OTHER_VALID".to_owned(),
+            "CBAR_invalid".to_owned(),
+            "CBAR_BAD-NAME".to_owned(),
+        ];
+
+        ensure_catalog_plugin_env_entries(&plugin, &env_path)
+            .expect("valid env placeholders should be written");
+
+        let content = fs::read_to_string(&env_path).expect("env file should be readable");
+        assert!(content.contains("# CBAR_VALID="));
+        assert!(!content.contains("OTHER_VALID"));
+        assert!(!content.contains("CBAR_invalid"));
+        assert!(!content.contains("CBAR_BAD-NAME"));
+
+        cleanup_path(&config_dir);
     }
 
     #[test]
