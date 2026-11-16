@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "cbar"
-version = "1.4.4"
+version = "1.4.5"
 dependencies = [
  "base64",
  "i18n-embed",

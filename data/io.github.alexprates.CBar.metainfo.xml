@@ -37,6 +37,12 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.4.5" date="2026-11-16">
+      <description>
+        <p>Registered catalog plugin environment variables as commented placeholders while preserving existing values.</p>
+        <p>Updated TLS and other Rust dependencies, including security fixes in rustls and rustls-webpki.</p>
+      </description>
+    </release>
     <release version="1.4.4" date="2026-06-05">
       <description>
         <p>Added catalog plugin version tracking and update actions for locally installed catalog plugins.</p>
